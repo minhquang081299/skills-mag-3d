@@ -1,0 +1,304 @@
+{
+ "rings": [
+  {
+   "r": "1",
+   "st": "done",
+   "w": 26,
+   "we": 16,
+   "names": [
+    "Đường Vành đai 1",
+    "Trần Khát Chân",
+    "Đại Cồ Việt",
+    "Xã Đàn",
+    "Kim Liên"
+   ],
+   "bbox": [
+    21.0,
+    105.8,
+    21.04,
+    105.87
+   ],
+   "hw": [
+    "trunk",
+    "primary",
+    "secondary",
+    "construction"
+   ],
+   "ids": [
+    701841904,
+    1530618975,
+    1552255189,
+    1568674081,
+    1576951375,
+    1576951376,
+    1576951383,
+    1576951384
+   ]
+  },
+  {
+   "r": "2",
+   "st": "done",
+   "w": 34,
+   "we": 20,
+   "names": [
+    "Đường Vành đai 2",
+    "Minh Khai",
+    "Đại La",
+    "Trường Chinh",
+    "Đường Láng",
+    "Bưởi",
+    "Võ Chí Công",
+    "Cầu Nhật Tân",
+    "Cầu Vĩnh Tuy",
+    "Nguyễn Văn Linh"
+   ],
+   "bbox": [
+    20.985,
+    105.78,
+    21.085,
+    105.925
+   ],
+   "exclude_names": [
+    "2.5",
+    "2,5"
+   ],
+   "hw": [
+    "motorway",
+    "trunk",
+    "primary"
+   ]
+  },
+  {
+   "r": "2.5",
+   "st": "build",
+   "mixed": true,
+   "w": 26,
+   "we": 16,
+   "names": [
+    "Vành đai 2.5",
+    "Vành đai 2,5",
+    "Ring Road 2.5"
+   ],
+   "bbox": [
+    20.95,
+    105.75,
+    21.1,
+    105.9
+   ]
+  },
+  {
+   "r": "3",
+   "st": "done",
+   "w": 40,
+   "we": 24,
+   "names": [
+    "Vành đai 3",
+    "Phạm Văn Đồng",
+    "Phạm Hùng",
+    "Khuất Duy Tiến",
+    "Nguyễn Xiển",
+    "Nghiêm Xuân Yêm",
+    "Cầu Thanh Trì",
+    "Cầu Thăng Long"
+   ],
+   "exclude_names": [
+    "3.5",
+    "3,5"
+   ],
+   "bbox": [
+    20.93,
+    105.74,
+    21.15,
+    105.95
+   ],
+   "hw": [
+    "motorway",
+    "trunk",
+    "primary"
+   ]
+  },
+  {
+   "r": "3.5",
+   "st": "build",
+   "mixed": true,
+   "w": 40,
+   "we": 24,
+   "names": [
+    "vành đai 3.5",
+    "vành đai 3,5",
+    "Vành Đai 3.5",
+    "Ring Road 3.5"
+   ],
+   "bbox": [
+    20.85,
+    105.65,
+    21.25,
+    105.95
+   ]
+  },
+  {
+   "r": "4",
+   "st": "build",
+   "mixed": true,
+   "w": 50,
+   "we": 30,
+   "names": [
+    "vành đai 4",
+    "Vành Đai 4",
+    "Ring Road 4"
+   ],
+   "bbox": [
+    20.75,
+    105.45,
+    21.3,
+    106.15
+   ]
+  },
+  {
+   "r": "5",
+   "st": "done",
+   "mixed": true,
+   "w": 40,
+   "we": 24,
+   "names": [
+    "vành đai 5",
+    "Vành Đai 5",
+    "Ring Road 5",
+    "CT.39"
+   ],
+   "exclude_names": [
+    "Đi Vành"
+   ],
+   "bbox": [
+    20.2,
+    105.0,
+    21.9,
+    106.8
+   ]
+  }
+ ],
+ "corridors": [
+  {
+   "id": "c1",
+   "w": 50,
+   "names": [
+    "Đường Vành đai 1"
+   ],
+   "bbox": [
+    21.01,
+    105.8,
+    21.04,
+    105.84
+   ],
+   "ids": [
+    701841904,
+    1530618975,
+    1552255189,
+    1568674081,
+    1576951375,
+    1576951376,
+    1576951383,
+    1576951384
+   ]
+  },
+  {
+   "id": "c2",
+   "w": 60,
+   "ground_only": true,
+   "names": [
+    "Minh Khai",
+    "Đại La",
+    "Trường Chinh"
+   ],
+   "bbox": [
+    20.99,
+    105.815,
+    21.012,
+    105.875
+   ],
+   "hw": [
+    "trunk",
+    "primary"
+   ]
+  },
+  {
+   "id": "c25",
+   "w": 40,
+   "names": [
+    "Vành đai 2.5",
+    "Ring Road 2.5"
+   ],
+   "bbox": [
+    20.985,
+    105.8,
+    21.0,
+    105.83
+   ]
+  },
+  {
+   "id": "c35",
+   "w": 70,
+   "names": [
+    "vành đai 3.5",
+    "Vành Đai 3.5",
+    "Ring Road 3.5"
+   ],
+   "bbox": [
+    20.9,
+    105.78,
+    20.975,
+    105.9
+   ]
+  },
+  {
+   "id": "c4",
+   "w": 120,
+   "names": [
+    "Song hành Vành đai 4",
+    "Song hành Vành Đai 4",
+    "Frontage Road"
+   ],
+   "bbox": [
+    20.8,
+    105.55,
+    21.25,
+    105.9
+   ]
+  },
+  {
+   "id": "c3",
+   "w": 1,
+   "names": [
+    "Vành đai 3"
+   ],
+   "exclude_names": [
+    "3.5",
+    "3,5"
+   ],
+   "bbox": [
+    21.03,
+    105.765,
+    21.075,
+    105.8
+   ]
+  },
+  {
+   "id": "c5",
+   "w": 1,
+   "names": [
+    "vành đai 5",
+    "Vành Đai 5",
+    "CT.39"
+   ],
+   "exclude_names": [
+    "Đi Vành"
+   ],
+   "bbox": [
+    20.2,
+    105.0,
+    21.9,
+    106.8
+   ]
+  }
+ ]
+}

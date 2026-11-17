@@ -1,0 +1,741 @@
+<meta charset="utf-8">
+<title>Bảy vòng vành đai Hà Nội</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Be+Vietnam+Pro:wght@400;500;600&family=Roboto+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: bản đồ 3D cố định toàn màn hình, cột bài viết cuộn bên trái. Mỗi đoạn bay tới một vòng vành đai,
+   dựng tuyến đường thành dải 3D (đoạn trên cao được nâng lên), hành lang giải phóng mặt bằng và từng hộ dân phải di dời.
+   Giao diện tối duy nhất kiểu bản đồ quy hoạch đêm: xanh = đã khai thác, vàng = đang thi công, đỏ cam = tiền / đất giải phóng mặt bằng. */
+:root {
+  color-scheme: dark;
+  --ink: #0f1316;
+  --slab: #171d21;
+  --slab-2: #1f272c;
+  --rule: #33404a;
+  --paper: #e9ecea;
+  --muted: #9aa6ad;
+  --done: #4f93c4;      /* đã khai thác */
+  --build: #f2c230;     /* đang thi công */
+  --gpmb: #e8532f;      /* giải phóng mặt bằng, bồi thường */
+  --plan: #8a949b;      /* chuẩn bị đầu tư */
+  --f-display: "Barlow Condensed", "Arial Narrow", "Roboto Condensed", sans-serif;
+  --f-body: "Be Vietnam Pro", "Segoe UI", Roboto, Arial, sans-serif;
+  --f-mono: "Roboto Mono", ui-monospace, Consolas, monospace;
+}
+html, body { background: var(--ink); color: var(--paper); }
+body { font-family: var(--f-body); font-size: 16px; line-height: 1.62; margin: 0; }
+
+#map { position: fixed; inset: 0; z-index: 0; background: var(--ink); cursor: grab; }
+#map:active { cursor: grabbing; }
+.maplibregl-map { overflow: hidden; position: fixed; }
+.maplibregl-canvas { position: absolute; left: 0; top: 0; }
+.maplibregl-canvas-container { position: absolute; inset: 0; }
+.maplibregl-marker { position: absolute; top: 0; left: 0; will-change: transform; }
+.maplibregl-ctrl-attrib, .maplibregl-ctrl-bottom-right, .maplibregl-ctrl-bottom-left { display: none; }
+#map::after { content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(90deg, rgba(15,19,22,.82) 0%, rgba(15,19,22,.35) 34%, rgba(15,19,22,0) 58%); }
+#spot { position: fixed; inset: 0; z-index: 1; pointer-events: none; opacity: 0; transition: opacity .7s; --sx: 50%; --sy: 50%;
+  background: radial-gradient(ellipse 420px 340px at var(--sx) var(--sy), rgba(10,12,14,0) 0%, rgba(10,12,14,0) 45%, rgba(10,12,14,.72) 100%); }
+#spot.on { opacity: 1; }
+
+.tag { font-family: var(--f-mono); font-size: 11px; letter-spacing: .06em; font-weight: 500; color: var(--paper);
+  background: rgba(15,19,22,.8); border: 1px solid var(--rule); padding: 3px 7px 3px 6px; white-space: nowrap;
+  display: flex; align-items: center; gap: 6px; transition: opacity .4s, background .3s, color .3s; }
+.tag i { width: 8px; height: 8px; display: block; border-radius: 50%; }
+.tag.dim { opacity: .3; }
+.lb { pointer-events: none; white-space: nowrap; transition: opacity .35s; }
+.lb.hide { opacity: 0; visibility: hidden; }
+.lb-street { font: italic 500 11.5px var(--f-body); color: var(--paper); text-shadow: 0 0 3px #0b0e10, 0 0 7px #0b0e10, 0 0 2px #0b0e10; }
+.lb-area { font: 500 10.5px var(--f-mono); letter-spacing: .16em; text-transform: uppercase; color: #c2ccd2; text-shadow: 0 0 4px #0b0e10, 0 0 8px #0b0e10; }
+.lb-area::before { content: "phường/xã "; letter-spacing: .04em; text-transform: none; color: var(--muted); font-size: 9.5px; }
+.lb-lm { display: flex; align-items: center; gap: 6px; font: 500 11px var(--f-mono); color: #111; background: var(--paper); padding: 2px 7px 2px 5px; box-shadow: 0 1px 6px rgba(0,0,0,.5); }
+.lb-lm i { width: 7px; height: 7px; border-radius: 50%; background: var(--gpmb); display: block; }
+.lb-town { font: 700 13px var(--f-display); letter-spacing: .14em; text-transform: uppercase; color: #9aa6ad; text-shadow: 0 0 4px #0b0e10, 0 0 9px #0b0e10; }
+.tag.focus { font-size: 13px; padding: 5px 10px; background: var(--paper); color: #111; font-weight: 600; }
+
+.bar { position: fixed; z-index: 3; top: env(safe-area-inset-top, 0px); left: 0; right: 0; display: flex; align-items: center;
+  justify-content: space-between; gap: 12px; padding-block: 12px; padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px)); font-family: var(--f-mono); font-size: 11px; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--muted); pointer-events: none; }
+.bar b { color: var(--paper); font-weight: 500; }
+.ticks { display: flex; gap: 4px; }
+.ticks span { width: 18px; height: 4px; background: var(--rule); transition: background .3s; }
+.ticks span.on { background: var(--paper); }
+
+.legend { position: fixed; z-index: 3; right: max(16px, env(safe-area-inset-right, 0px)); bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  display: flex; flex-wrap: wrap; gap: 6px 14px; max-width: 330px; justify-content: flex-end; font-family: var(--f-mono); font-size: 11px;
+  color: var(--paper); background: rgba(15,19,22,.86); border: 1px solid var(--rule); padding: 8px 12px; pointer-events: none; }
+.legend span { display: flex; align-items: center; gap: 6px; }
+.legend i { width: 14px; height: 5px; display: block; }
+
+.ctrl { position: fixed; z-index: 3; right: max(16px, env(safe-area-inset-right, 0px)); top: 50%; transform: translateY(-50%);
+  display: grid; gap: 1px; background: var(--rule); border: 1px solid var(--rule); }
+.ctrl button { width: 40px; height: 40px; display: grid; place-items: center; padding: 0; border: 0; cursor: pointer;
+  background: rgba(15,19,22,.92); color: var(--paper); }
+.ctrl button:hover { background: var(--slab-2); }
+.ctrl button:focus-visible { outline: 2px solid var(--build); outline-offset: -2px; }
+.ctrl button[aria-pressed="true"] { background: var(--paper); color: #111; }
+.ctrl svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.ctrl .sep { height: 6px; background: var(--rule); }
+.hint { position: fixed; z-index: 3; right: max(16px, env(safe-area-inset-right, 0px)); bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+  font-family: var(--f-mono); font-size: 10.5px; color: var(--muted); text-align: right; background: rgba(15,19,22,.8);
+  padding: 6px 10px; border: 1px solid var(--rule); pointer-events: none; max-width: 260px; line-height: 1.5; }
+.hint b { color: var(--paper); font-weight: 500; }
+
+.info { position: fixed; z-index: 4; top: calc(56px + env(safe-area-inset-top, 0px)); right: calc(max(16px, env(safe-area-inset-right, 0px)) + 54px);
+  width: 290px; max-width: calc(100vw - 32px); box-sizing: border-box; background: rgba(15,19,22,.96); border: 1px solid var(--rule);
+  padding: 14px 16px; display: grid; gap: 8px; justify-items: start; }
+.info[hidden] { display: none; }
+.info .ib { font-family: var(--f-mono); font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: #111; padding: 2px 6px; font-weight: 500; }
+.info .ih { font-family: var(--f-display); font-size: 24px; font-weight: 700; line-height: 1.05; text-transform: uppercase; padding-right: 24px; }
+.info .it { font-size: 13px; line-height: 1.5; margin: 0; color: #cdd3d1; }
+.info dl { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; margin: 0; font-size: 12.5px; width: 100%; font-variant-numeric: tabular-nums; }
+.info dt { font-family: var(--f-mono); font-size: 10.5px; color: var(--muted); text-transform: uppercase; padding-top: 2px; }
+.info dd { margin: 0; }
+.info .ix { position: absolute; top: 6px; right: 6px; width: 30px; height: 30px; border: 0; background: transparent; color: var(--muted); font-size: 20px; cursor: pointer; }
+
+.story { position: relative; z-index: 2; pointer-events: none; padding-block: 0;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.step { min-height: 100vh; display: flex; align-items: center; padding-block: 18vh; box-sizing: border-box; }
+.card { pointer-events: auto; width: min(450px, 100%); box-sizing: border-box; min-width: 0; background: rgba(23,29,33,.94);
+  border: 1px solid var(--rule); padding: 26px 26px 24px; display: grid; gap: 14px; backdrop-filter: blur(6px); }
+.chapter .card { background: transparent; border: 0; backdrop-filter: none; padding-left: 0; }
+.chapter h2 { font-size: clamp(44px, 6vw, 68px); }
+.code { font-family: var(--f-mono); font-size: 12px; letter-spacing: .08em; color: var(--build); display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.code em { font-style: normal; color: var(--muted); }
+h1, h2 { font-family: var(--f-display); font-weight: 700; text-wrap: balance; margin: 0; text-transform: uppercase; }
+h1 { font-size: clamp(44px, 7vw, 80px); line-height: .93; }
+h2 { font-size: clamp(30px, 4.2vw, 42px); line-height: 1; }
+p { margin: 0; color: #cdd3d1; }
+p.lede { font-size: 18px; color: var(--paper); }
+.meta { font-family: var(--f-mono); font-size: 11.5px; color: var(--muted); letter-spacing: .03em; }
+.meta a, .card a { color: var(--paper); }
+.g { color: var(--gpmb); font-weight: 600; }
+.d { color: var(--done); font-weight: 600; }
+.hero { padding-block: 16vh 10vh; }
+.hero .card { width: min(580px, 100%); padding: 32px 30px 28px; }
+.rings { height: 12px; margin: -32px -30px 6px; display: flex; }
+.rings span { flex: 1; }
+.scroll-hint { font-family: var(--f-mono); font-size: 11px; letter-spacing: .1em; color: var(--muted); text-transform: uppercase; display: flex; align-items: center; gap: 10px; }
+.scroll-hint::after { content: ""; width: 1px; height: 26px; background: var(--muted); animation: drop 1.8s infinite; }
+@keyframes drop { 0% { transform: scaleY(.2); transform-origin: top; } 60% { transform: scaleY(1); } 100% { opacity: 0; } }
+
+.facts { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); }
+.facts div { padding: 12px 10px 10px 0; display: grid; gap: 2px; min-width: 0; align-content: start; }
+.facts div + div { padding-left: 12px; border-left: 1px solid var(--rule); }
+.facts strong { font-family: var(--f-display); font-size: 32px; line-height: 1; font-weight: 600; font-variant-numeric: tabular-nums; }
+.facts span { font-size: 12.5px; color: var(--muted); line-height: 1.35; }
+.spec { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; font-size: 13.5px; margin: 0; padding: 12px 0 0; border-top: 1px solid var(--rule); }
+.spec dt { font-family: var(--f-mono); font-size: 11px; letter-spacing: .06em; color: var(--muted); text-transform: uppercase; padding-top: 2px; }
+.spec dd { margin: 0; min-width: 0; }
+.note { font-size: 13.5px; padding: 10px 12px; background: var(--slab-2); border-left: 3px solid var(--gpmb); color: var(--paper); }
+.status { display: inline-flex; gap: 6px; align-items: center; font-family: var(--f-mono); font-size: 11px; letter-spacing: .05em; text-transform: uppercase; padding: 3px 8px; border: 1px solid var(--rule); justify-self: start; }
+.status i { width: 8px; height: 8px; border-radius: 50%; display: block; }
+
+/* biểu đồ */
+.chart { display: grid; gap: 10px; }
+.chart h3 { margin: 0; font-family: var(--f-mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 500; }
+.row { display: grid; grid-template-columns: 74px 1fr; gap: 10px; align-items: center; font-size: 12.5px; }
+.row .lab { font-family: var(--f-mono); font-size: 11px; color: var(--paper); }
+.track { position: relative; height: 18px; display: flex; gap: 2px; }
+.track span { display: block; height: 100%; border-radius: 0 4px 4px 0; }
+.track span:first-child { border-radius: 0; }
+.track span:only-child { border-radius: 0 4px 4px 0; }
+.row .val { font-family: var(--f-mono); font-size: 11px; color: var(--paper); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.row .bar1 { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.keys { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
+.keys span { display: flex; gap: 6px; align-items: center; }
+.keys i { width: 10px; height: 10px; display: block; }
+.tip { position: fixed; z-index: 6; pointer-events: none; background: #0b0e10; border: 1px solid var(--rule); padding: 6px 9px; font-size: 12px; color: var(--paper); font-family: var(--f-mono); opacity: 0; transition: opacity .12s; }
+[data-tip] { cursor: default; }
+details.table { font-size: 12px; color: var(--muted); }
+details.table summary { cursor: pointer; font-family: var(--f-mono); font-size: 11px; letter-spacing: .05em; }
+details.table table { width: 100%; border-collapse: collapse; margin-top: 6px; font-variant-numeric: tabular-nums; }
+details.table td, details.table th { border-top: 1px solid var(--rule); padding: 4px 4px 4px 0; text-align: right; color: var(--paper); font-weight: 400; }
+details.table td:first-child, details.table th:first-child { text-align: left; }
+
+.end { min-height: 90vh; }
+@media (max-width: 760px) {
+  #map::after { background: linear-gradient(0deg, rgba(15,19,22,.9) 0%, rgba(15,19,22,.25) 50%, rgba(15,19,22,0) 70%); }
+  .step { align-items: flex-end; padding-block: 50vh 8vh; }
+  .hero { padding-block: 38vh 6vh; align-items: flex-end; }
+  .card { padding: 20px 18px 18px; }
+  .hero .card { padding: 26px 20px 22px; }
+  .rings { margin: -26px -20px 4px; }
+  .facts strong { font-size: 25px; }
+  .ctrl { top: calc(84px + env(safe-area-inset-top, 0px)); transform: none; }
+  .ctrl button { width: 36px; height: 36px; }
+  .hint { display: none; }
+  .legend { bottom: auto; top: calc(40px + env(safe-area-inset-top, 0px)); right: auto; left: max(16px, env(safe-area-inset-left, 0px)); justify-content: flex-start; }
+  .info { top: auto; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); left: max(16px, env(safe-area-inset-left, 0px)); right: max(16px, env(safe-area-inset-right, 0px)); width: auto; }
+}
+@media (prefers-reduced-motion: reduce) { .scroll-hint::after { animation: none; } }
+</style>
+
+<div id="map" aria-hidden="true"></div>
+<div id="spot" aria-hidden="true"></div>
+<div class="bar"><span>Quy hoạch giao thông · <b>Hà Nội</b></span><span class="ticks" id="ticks"></span></div>
+<nav class="ctrl" aria-label="Điều khiển bản đồ">
+  <button id="zin" type="button" title="Phóng to" aria-label="Phóng to"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+  <button id="zout" type="button" title="Thu nhỏ" aria-label="Thu nhỏ"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
+  <div class="sep"></div>
+  <button id="rl" type="button" title="Xoay trái 45°" aria-label="Xoay trái 45 độ"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.3-5.6"/><path d="M4 4v4h4"/></svg></button>
+  <button id="rr" type="button" title="Xoay phải 45°" aria-label="Xoay phải 45 độ"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v4h-4"/></svg></button>
+  <button id="orbit" type="button" title="Xoay 360°" aria-label="Xoay 360 độ" aria-pressed="false"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="9" ry="4"/><path d="M12 3v18"/><path d="M18 9.5l3 2.5-3.5 1.5"/></svg></button>
+  <div class="sep"></div>
+  <button id="pup" type="button" title="Nghiêng nhiều hơn" aria-label="Nghiêng nhiều hơn"><svg viewBox="0 0 24 24"><path d="M3 18l9-4 9 4"/><path d="M12 14V4M8 8l4-4 4 4"/></svg></button>
+  <button id="pdown" type="button" title="Nhìn từ trên xuống" aria-label="Nhìn từ trên xuống"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16"/><path d="M12 8v8M8 12h8"/></svg></button>
+  <button id="compass" type="button" title="Về hướng Bắc" aria-label="Về hướng Bắc"><svg viewBox="0 0 24 24"><path d="M12 3l4 9h-8z" fill="#e8532f" stroke="#e8532f"/><path d="M12 21l-4-9h8z"/></svg></button>
+  <button id="reset" type="button" title="Về góc nhìn của đoạn đang đọc" aria-label="Về góc nhìn của đoạn đang đọc"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></button>
+</nav>
+<div class="hint"><b>Kéo</b> để di chuyển · <b>Chuột phải + kéo</b> để xoay, nghiêng · <b>Ctrl + cuộn</b> để zoom · <b>Bấm</b> vào tuyến hoặc khối nhà để xem chi tiết</div>
+<div class="legend" aria-hidden="true">
+  <span><i style="background:#4f93c4"></i>Đã khai thác</span>
+  <span><i style="background:#f2c230"></i>Đang thi công</span>
+  <span><i style="background:#8a949b"></i>Quy hoạch</span>
+  <span><i style="background:#e8532f;height:10px;width:10px"></i>Hộ dân phải di dời</span>
+</div>
+<aside class="info" id="info" hidden aria-live="polite">
+  <button class="ix" type="button" aria-label="Đóng">×</button>
+  <span class="ib"></span><div class="ih"></div><p class="it"></p><dl></dl>
+</aside>
+<div class="tip" id="tip"></div>
+
+<main class="story" id="story">
+
+  <section class="step hero" data-focus="all" data-view="overview">
+    <div class="card">
+      <div class="rings"><span style="background:#4f93c4"></span><span style="background:#4f93c4"></span><span style="background:#f2c230"></span><span style="background:#4f93c4"></span><span style="background:#f2c230"></span><span style="background:#f2c230"></span><span style="background:#8a949b"></span></div>
+      <div class="code">QUY HOẠCH · GIẢI PHÓNG MẶT BẰNG <em>17.11.2026</em></div>
+      <h1>Bảy vòng vành đai và cái giá của mặt bằng</h1>
+      <p class="lede">Hà Nội quy hoạch 7 tuyến vành đai, từ vòng 1 trong lõi phố cổ tới vòng 5 dài 349 km qua 7 tỉnh. Càng vào trong, mỗi mét đường càng đắt, và phần lớn tiền không đổ vào bê tông mà vào đền bù cho hàng nghìn hộ dân.</p>
+      <p class="meta">Khởi đầu từ bài tổng hợp của <a href="https://batdongsanhud.com/he-thong-7-duong-vanh-dai-cua-ha-noi.html" target="_blank" rel="noopener">Batdongsanhud</a> (2021), cập nhật số liệu 2026 từ Báo Chính phủ, Báo Xây dựng, Hà Nội Online, Thanh Niên, VnEconomy, Znews, Dân trí, Tiền Phong, VTC News · Bản đồ 3D từ OpenStreetMap</p>
+      <div class="scroll-hint">Cuộn để đi qua từng vòng</div>
+    </div>
+  </section>
+
+  <section class="step" data-focus="all" data-view="overview2">
+    <div class="card">
+      <div class="code">TOÀN CẢNH</div>
+      <h2>Bảy vòng, ba trạng thái</h2>
+      <p>Năm 2021, Hà Nội mới khép kín một vòng là Vành đai 3; vòng 4 và 5 còn nằm trên giấy. Đến cuối 2026, các đoạn nghẽn của vòng 1, 2, 2,5 đã thông, Vành đai 4 đang về đích, còn Vành đai 5 vừa được Quốc hội thông qua chủ trương.</p>
+      <div class="facts">
+        <div><strong>7</strong><span>tuyến vành đai trong quy hoạch</span></div>
+        <div><strong class="g">4.011 ha</strong><span>đất cần thu hồi riêng cho Vành đai 5</span></div>
+        <div><strong>2035</strong><span>mốc hoàn thành vòng ngoài cùng</span></div>
+      </div>
+      <p>Màu tuyến trên bản đồ: <span class="d">xanh</span> là đoạn đã khai thác, <span style="color:var(--build);font-weight:600">vàng</span> là đoạn đang thi công. Tuyến được nâng lên là đường trên cao.</p>
+    </div>
+  </section>
+
+  <section class="step" data-focus="all" data-view="overview2b">
+    <div class="card">
+      <div class="code">TIỀN MẶT BẰNG</div>
+      <h2>Trong lõi, đất đắt hơn đường</h2>
+      <p>Ở các đoạn nội đô, chi phí bồi thường, hỗ trợ, tái định cư áp đảo chi phí xây dựng. Ra vành ngoài, tỷ lệ này đảo ngược.</p>
+      <div class="chart" id="chartShare">
+        <h3>Tỷ trọng giải phóng mặt bằng trong vốn dự án</h3>
+        <div class="keys"><span><i style="background:#e8532f"></i>Giải phóng mặt bằng</span><span><i style="background:#4f93c4"></i>Xây dựng và chi phí khác</span></div>
+      </div>
+      <details class="table"><summary>Xem bảng số liệu</summary>
+        <table><thead><tr><th>Dự án</th><th>GPMB (tỷ)</th><th>Tổng (tỷ)</th><th>Tỷ trọng</th></tr></thead><tbody id="tShare"></tbody></table>
+      </details>
+      <p class="meta">VĐ1: Znews (GPMB gần 6.000 tỷ, xây dựng 627 tỷ). VĐ2: VnEconomy. VĐ4: Báo Chính phủ 2022 (khoảng 19.000 tỷ cho 3 địa phương / 85.813 tỷ). VĐ5: VTC News (sơ bộ).</p>
+    </div>
+  </section>
+
+  <section class="step chapter" data-focus="all" data-view="core">
+    <div class="card">
+      <div class="code">PHẦN 1 <em>Nội đô</em></div>
+      <h2>Ba vòng trong lõi</h2>
+      <p>Vành đai 1, 2 và 2,5 chạy qua những phường đông dân nhất. Mỗi đoạn nối còn thiếu là hàng nghìn hộ phải di dời.</p>
+    </div>
+  </section>
+
+  <section class="step" data-focus="1" data-corr="c1" data-zoom="14.9" data-bear="-30" data-pitch="58">
+    <div class="card">
+      <div class="code">VÀNH ĐAI 1 <em>Hoàng Cầu – Voi Phục</em></div>
+      <span class="status"><i style="background:#4f93c4"></i>Thông xe kỹ thuật 2/9/2026</span>
+      <h2>2,2 km, 1.983 hộ dân</h2>
+      <p>Đoạn cuối cùng để khép kín Vành đai 1 chỉ dài hơn 2,2 km, mặt cắt 50 m, qua ba phường Ô Chợ Dừa, Láng, Giảng Võ. Để làm nó, thành phố thu hồi <span class="g">153.341 m²</span> đất của <span class="g">1.983 hộ</span>.</p>
+      <div class="facts">
+        <div><strong class="g">~6.000</strong><span>tỷ đồng giải phóng mặt bằng</span></div>
+        <div><strong class="d">627</strong><span>tỷ đồng xây dựng</span></div>
+        <div><strong>~10×</strong><span>tiền đất so với tiền đường</span></div>
+      </div>
+      <p>Mỗi khối đỏ trên bản đồ là một hộ phải di dời, xếp dọc hành lang 50 m. Tiến độ từng bị lùi sang hết 2026 vì vướng mặt bằng (Quyết định 6032/QĐ-UBND). Hạng mục bãi đỗ xe 6.803 m² phát sinh thêm 164 hộ; đến 5/9/2026, 110 hộ đã ký bàn giao.</p>
+      <p class="meta">Nguồn: <a href="https://znews.vn/duong-vanh-dai-1-doan-hoang-cau-voi-phuc-dan-lo-dien-sau-giai-toa-post1611887.html" target="_blank" rel="noopener">Znews</a>, <a href="https://znews.vn/hien-trang-giai-phong-mat-bang-du-an-bai-do-xe-tai-vanh-dai-1-post1681426.html" target="_blank" rel="noopener">Znews</a>. Vị trí khối nhà là minh họa.</p>
+    </div>
+  </section>
+
+  <section class="step" data-focus="2" data-corr="c2" data-zoom="14.3" data-bear="25" data-pitch="62">
+    <div class="card">
+      <div class="code">VÀNH ĐAI 2 <em>Vĩnh Tuy – Ngã Tư Sở</em></div>
+      <span class="status"><i style="background:#4f93c4"></i>Thông xe 11/1/2023</span>
+      <h2>Đường trên cao 5 km, 1.854 hộ dưới chân</h2>
+      <p>Đoạn khép kín phía nam của Vành đai 2 dài 5,08 km, gồm cầu cạn rộng 19 m và đường dưới thấp rộng 53,5–63,5 m. Tổng vốn 9.997 tỷ đồng, trong đó <span class="g">khoảng 6.600 tỷ</span> dành cho giải phóng mặt bằng.</p>
+      <div class="facts">
+        <div><strong class="g">1.854</strong><span>hộ dân bị thu hồi đất</span></div>
+        <div><strong class="g">78</strong><span>tổ chức</span></div>
+        <div><strong>~800</strong><span>hộ tái định cư, 50 hộ nhận nhà</span></div>
+      </div>
+      <p>Mặt bằng mất 2 năm, thi công hơn 4 năm (28/4/2018–11/1/2023). Toàn tuyến Vành đai 2 quy hoạch hơn 43 km, mặt cắt 50–72,5 m; khoảng 32 km đã hoàn thiện.</p>
+      <p class="meta">Nguồn: <a href="https://vneconomy.vn/ha-noi-chinh-thuc-thong-xe-doan-vanh-dai-2-tri-gia-10-000-ty-dong-sau-4-nam-gap-rut-thi-cong.htm" target="_blank" rel="noopener">VnEconomy</a>. Mỗi khối đỏ là một hộ, vị trí minh họa.</p>
+    </div>
+  </section>
+
+  <section class="step" data-focus="2.5" data-corr="c25" data-zoom="15.6" data-bear="-15" data-pitch="60">
+    <div class="card">
+      <div class="code">VÀNH ĐAI 2,5 <em>Nguyễn Trãi – Đầm Hồng</em></div>
+      <span class="status"><i style="background:#f2c230"></i>Giải phóng mặt bằng xong 2026</span>
+      <h2>720 hộ, và những ngôi nhà rộng 0,5 m</h2>
+      <p>Đoạn qua phường Khương Đình dài hơn 1.500 m, mặt cắt 40 m, thu hồi gần <span class="g">61.000 m²</span> của <span class="g">720 hộ</span> và 16 tổ chức, hoàn thành vượt tiến độ.</p>
+      <div class="note">Ngay sau giải tỏa, hàng loạt nhà siêu mỏng, siêu méo mọc lên trên phần đất thừa: có căn hình tam giác rộng khoảng 0,5 m vẫn xây 3 tầng. Quy định 61 của Hà Nội không cấp phép xây mới trên lô dưới 15 m² hoặc mặt tiền dưới 3 m.</div>
+      <p>Đoạn Đầm Hồng – Quốc lộ 1A (BT, 1.317 tỷ đồng) kéo dài hơn 10 năm vì vướng mặt bằng, mới cơ bản giải phóng xong cuối 2025.</p>
+      <p class="meta">Nguồn: <a href="https://dantri.com.vn/thoi-su/duong-vanh-dai-25-vua-hoan-thanh-gpmb-da-xuat-hien-hang-loat-nha-di-dang-20260607010555440.htm" target="_blank" rel="noopener">Dân trí</a>, <a href="https://tienphong.vn/hoan-thanh-duong-vanh-dai-25-trong-quy-i2026-post1800767.tpo" target="_blank" rel="noopener">Tiền Phong</a>.</p>
+    </div>
+  </section>
+
+  <section class="step chapter" data-focus="all" data-view="mid">
+    <div class="card">
+      <div class="code">PHẦN 2 <em>Vành giữa</em></div>
+      <h2>Vòng 3 và 3,5</h2>
+      <p>Vành đai 3 là vòng đầu tiên khép kín. Vành đai 3,5 đang nối dần các đoạn rời ở phía tây và nam.</p>
+    </div>
+  </section>
+
+  <section class="step" data-focus="3" data-corr="c3" data-zoom="14.4" data-bear="40" data-pitch="64">
+    <div class="card">
+      <div class="code">VÀNH ĐAI 3 <em>Đoạn trên cao Mai Dịch – Nam Thăng Long</em></div>
+      <span class="status"><i style="background:#4f93c4"></i>Đã khép kín</span>
+      <h2>Vòng duy nhất đã khép kín</h2>
+      <p>Vành đai 3 dài khoảng 65 km. Mảnh ghép cuối phía tây bắc là cầu cạn Mai Dịch – Nam Thăng Long dài 5,367 km, trong đó 4,591 km đi trên cao, 4 làn xe, tốc độ 100 km/h, vốn 5.343 tỷ đồng vay JICA, thông xe tháng 10/2020.</p>
+      <p>Đi trên cao dọc dải phân cách giữa đường có sẵn, đoạn này gần như không phải giải tỏa thêm nhà dân. Đây là lý do suất vốn của nó thấp hơn hẳn các đoạn mở rộng mặt đất trong lõi.</p>
+      <p class="meta">Nguồn: <a href="https://nhadautu.vn/thong-xe-cau-can-mai-dich--nam-thang-long-hon-5340-ty-d43689.html" target="_blank" rel="noopener">Nhà Đầu Tư</a>, <a href="https://baodautu.vn/thong-xe-cau-can-mai-dich---thang-long-dai-hon-53-km-d131085.html" target="_blank" rel="noopener">Báo Đầu tư</a>.</p>
+    </div>
+  </section>
+
+  <section class="step" data-focus="3.5" data-corr="c35" data-zoom="14.2" data-bear="-20" data-pitch="58">
+    <div class="card">
+      <div class="code">VÀNH ĐAI 3,5 <em>Phúc La – Văn Phú → cao tốc Pháp Vân</em></div>
+      <span class="status"><i style="background:#f2c230"></i>Đang thi công</span>
+      <h2>44,7 ha ở Thanh Trì, 710 hộ đất ở</h2>
+      <p>Đoạn hơn 10 km từ Phúc La – Văn Phú tới cao tốc Pháp Vân – Cầu Giẽ có mặt cắt 60–80 m, 6 làn xe, tốc độ 80 km/h. Riêng xã Thanh Trì thu hồi khoảng <span class="g">44,7 ha</span>:</p>
+      <dl class="spec"><dt>Nông nghiệp</dt><dd>khoảng 26 ha</dd><dt>Đất ở</dt><dd>khoảng 4,8 ha, liên quan khoảng <span class="g">710 hộ</span></dd><dt>Tổ chức, xã</dt><dd>khoảng 14,8 ha</dd><dt>Tái định cư</dt><dd>3 khu đề xuất</dd></dl>
+      <p>Đoạn nối cầu Ngọc Hồi dự kiến thông xe kỹ thuật tháng 7/2027. Khoảng 10 km qua Mê Linh còn đang lập dự án, triển khai 2026–2027.</p>
+      <p class="meta">Nguồn: <a href="https://hanoionline.vn/khep-kin-vanh-dai-35-mo-rong-khong-gian-phat-trien-loi-do-thi-246415042.htm" target="_blank" rel="noopener">Hà Nội Online</a>. Mỗi khối đỏ là một hộ, vị trí minh họa.</p>
+    </div>
+  </section>
+
+  <section class="step chapter" data-focus="all" data-view="outer">
+    <div class="card">
+      <div class="code">PHẦN 3 <em>Vùng Thủ đô</em></div>
+      <h2>Vòng 4 và 5</h2>
+      <p>Hai vòng ngoài vượt khỏi Hà Nội, nối sang Hưng Yên, Bắc Ninh và xa hơn nữa.</p>
+    </div>
+  </section>
+
+  <section class="step" data-focus="4" data-view="r4" data-pitch="50">
+    <div class="card">
+      <div class="code">VÀNH ĐAI 4 – VÙNG THỦ ĐÔ</div>
+      <span class="status"><i style="background:#f2c230"></i>Cao tốc phấn đấu xong trước APEC 2027</span>
+      <h2>113,5 km, 1.426 ha mặt bằng</h2>
+      <p>Tổng chiều dài khoảng 113,52 km: qua Hà Nội 57,52 km, Hưng Yên 19,3 km, Bắc Ninh 35,7 km, từ cầu Hồng Hà phía tây bắc tới cầu Mễ Sở phía đông nam. Tổng mức đầu tư 7 dự án thành phần khoảng 85.563 tỷ đồng. Diện tích giải phóng mặt bằng khoảng <span class="g">1.426 ha</span>, đạt 100%.</p>
+      <p>Đường song hành đoạn Hà Nội đạt khoảng 85% sản lượng, Hưng Yên 81,8%, Bắc Ninh 46,55%. Tuyến vàng trên bản đồ là phần đang thi công, gồm cao tốc giữa và hai đường song hành.</p>
+      <p class="meta">Nguồn: <a href="https://baoxaydung.vn/day-tien-do-du-an-vanh-dai-4-vung-thu-do-phan-dau-xong-cao-toc-truoc-apec-2027-192260518144957527.htm" target="_blank" rel="noopener">Báo Xây dựng</a> (5/2026).</p>
+    </div>
+  </section>
+
+  <section class="step" data-focus="4" data-corr="c4" data-center="105.7472,20.9420" data-zoom="14.1" data-bear="-35" data-pitch="60">
+    <div class="card">
+      <div class="code">VÀNH ĐAI 4 <em>Đoạn qua Hà Đông, Hoài Đức</em></div>
+      <span class="status"><i style="background:#e8532f"></i>Hành lang 120 m</span>
+      <h2>14.647 hộ ở đoạn Hà Nội</h2>
+      <p>Theo phương án bồi thường năm 2022, riêng đoạn Hà Nội có khoảng <span class="g">14.647 hộ</span> được bồi thường, <span class="g">2.203 hộ</span> phải tái định cư. Ở đây, mỗi khối đỏ dọc hành lang đại diện <b>10 hộ</b>.</p>
+      <div class="facts">
+        <div><strong class="g">14.647</strong><span>hộ được bồi thường ở Hà Nội</span></div>
+        <div><strong class="g">2.203</strong><span>hộ tái định cư</span></div>
+        <div><strong>9</strong><span>khu tái định cư, 36,3 ha</span></div>
+      </div>
+      <p>Toàn dự án dự kiến khoảng 19.000 tỷ đồng giải phóng mặt bằng, chưa tới 25% tổng vốn, khác hẳn các đoạn nội đô. Tên phường, xã hai bên tuyến hiện trên bản đồ; kéo hoặc thu nhỏ để đi dọc hành lang.</p>
+      <p class="meta">Nguồn: <a href="https://baochinhphu.vn/lam-duong-vanh-dai-4-ha-noi-boi-thuong-tai-dinh-cu-cho-hon-14600-ho-dan-102220504134300485.htm" target="_blank" rel="noopener">Báo Chính phủ</a> (2022). Vị trí khối nhà là minh họa.</p>
+    </div>
+  </section>
+
+  <section class="step" data-focus="5" data-corr="c5" data-view="r5" data-pitch="20">
+    <div class="card">
+      <div class="code">VÀNH ĐAI 5 – VÙNG THỦ ĐÔ</div>
+      <span class="status"><i style="background:#8a949b"></i>Chuẩn bị đầu tư · khởi công 2027</span>
+      <h2>349 km qua 7 tỉnh</h2>
+      <p>Quốc hội thông qua chủ trương đầu tư tháng 8/2026. Tuyến dài khoảng 349 km qua Hà Nội, Ninh Bình, Hưng Yên, Hải Phòng, Bắc Ninh, Thái Nguyên, Phú Thọ; tuyến chính cao tốc 6 làn.</p>
+      <div class="facts">
+        <div><strong>288.268</strong><span>tỷ đồng tổng mức đầu tư sơ bộ</span></div>
+        <div><strong class="g">78.143</strong><span>tỷ đồng bồi thường, hỗ trợ, tái định cư</span></div>
+        <div><strong class="g">224</strong><span>tỷ đồng mặt bằng mỗi km</span></div>
+      </div>
+      <p>Bản đồ thể hiện khoảng 130 km đường đã mang tên Vành đai 5 trên OpenStreetMap: các đoạn địa phương đã làm (xanh), đang thi công (vàng) và đoạn cao tốc quy hoạch mã CT.39 (xám). Hướng tuyến cao tốc 349 km chưa được vẽ đầy đủ nên bản đồ không tự nối. Mốc: chuẩn bị đầu tư 2026, khởi công 2027, khai thác 2031, hoàn thành toàn tuyến trước 2035.</p>
+      <p class="meta">Nguồn: <a href="https://thanhnien.vn/quoc-hoi-chot-du-an-vanh-dai-5-vung-thu-do-185260824084426577.htm" target="_blank" rel="noopener">Thanh Niên</a>, <a href="https://vtcnews.vn/chinh-phu-de-xuat-gan-290-000-ty-dong-lam-vanh-dai-5-vung-thu-do-dai-349km-ar1032941.html" target="_blank" rel="noopener">VTC News</a>.</p>
+    </div>
+  </section>
+
+  <section class="step" data-focus="all" data-view="overview2">
+    <div class="card">
+      <div class="code">SO SÁNH</div>
+      <h2>Một km trong lõi bằng hơn 12 km vành ngoài</h2>
+      <p>Chia tiền giải phóng mặt bằng cho chiều dài tuyến, đoạn Hoàng Cầu – Voi Phục tốn khoảng 2.700 tỷ đồng mỗi km, gấp hơn 12 lần mức 224 tỷ/km dự kiến cho Vành đai 5.</p>
+      <div class="chart" id="chartKm"><h3>Tiền giải phóng mặt bằng trên mỗi km (tỷ đồng)</h3></div>
+      <details class="table"><summary>Xem bảng số liệu</summary>
+        <table><thead><tr><th>Dự án</th><th>GPMB (tỷ)</th><th>Dài (km)</th><th>Tỷ/km</th></tr></thead><tbody id="tKm"></tbody></table>
+      </details>
+      <p class="meta">Tỷ/km do bài tự tính từ số liệu đã dẫn; VĐ5 là suất chính thức trong tờ trình. VĐ4 dùng chi phí GPMB phương án 2022 chia cho chiều dài 113,52 km.</p>
+    </div>
+  </section>
+
+  <section class="step end" data-focus="all" data-view="overview">
+    <div class="card">
+      <div class="code">KẾT</div>
+      <h2>Đường đi qua nhà ai</h2>
+      <p>Mỗi vòng vành đai mở rộng không gian đô thị, nhưng cũng là hàng nghìn quyết định thu hồi đất. Ở lõi đô thị, giải phóng mặt bằng chiếm phần lớn vốn và quyết định tiến độ; ở vành ngoài, bài toán chuyển sang hàng nghìn ha đất nông nghiệp và các khu tái định cư.</p>
+      <p class="meta">Số liệu: Batdongsanhud (2021, bối cảnh); Znews; VnEconomy; Dân trí; Tiền Phong; Nhà Đầu Tư; Báo Đầu tư; Hà Nội Online; Báo Xây dựng; Báo Chính phủ; Thanh Niên; VTC News (liên kết ở từng đoạn). Bản đồ: © OpenStreetMap contributors (ODbL), dữ liệu Geofabrik 17/11/2026. Hành lang và khối hộ dân là minh họa theo số liệu công bố, không phải vị trí từng nhà.</p>
+    </div>
+  </section>
+</main>
+
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script>
+(function () {
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const narrow = () => innerWidth <= 760;
+  const C = { done: '#4f93c4', build: '#f2c230', plan: '#8a949b', gpmb: '#e8532f', dim: '#2b3338' };
+  const RINGS = ['1', '2', '2.5', '3', '3.5', '4', '5'];
+  const LABEL = { '1': 'VÀNH ĐAI 1', '2': 'VÀNH ĐAI 2', '2.5': 'VÀNH ĐAI 2,5', '3': 'VÀNH ĐAI 3', '3.5': 'VÀNH ĐAI 3,5', '4': 'VÀNH ĐAI 4', '5': 'VÀNH ĐAI 5' };
+  // Hành lang giải phóng mặt bằng: số hộ, đơn vị khối, bề rộng (m)
+  const CORR = {
+    c1: { r: '1', n: 1983, unit: 1, w: 50, name: 'Vành đai 1 · Hoàng Cầu – Voi Phục', note: '1.983 hộ, 153.341 m² thu hồi; GPMB gần 6.000 tỷ đồng.' },
+    c2: { r: '2', n: 1854, unit: 1, w: 60, name: 'Vành đai 2 · Vĩnh Tuy – Ngã Tư Sở', note: '1.854 hộ và 78 tổ chức; GPMB khoảng 6.600 tỷ đồng; khoảng 800 hộ tái định cư.' },
+    c25: { r: '2.5', n: 720, unit: 1, w: 40, name: 'Vành đai 2,5 · Nguyễn Trãi – Đầm Hồng', note: '720 hộ và 16 tổ chức; gần 61.000 m² thu hồi.' },
+    c3: { r: '3', n: 0, unit: 1, w: 0, name: 'Vành đai 3 · Mai Dịch – Nam Thăng Long', note: '' },
+    c35: { r: '3.5', n: 710, unit: 1, w: 70, name: 'Vành đai 3,5 · đoạn xã Thanh Trì', note: 'Khoảng 710 hộ đất ở trong 44,7 ha thu hồi.' },
+    c5: { r: '5', n: 0, unit: 1, w: 0, name: 'Vành đai 5', note: '' },
+    c4: { r: '4', n: 14647, unit: 10, w: 120, name: 'Vành đai 4 · đoạn Hà Nội', note: '14.647 hộ được bồi thường, 2.203 hộ tái định cư (phương án 2022).' }
+  };
+  const FACT = {
+    '1': ['Vành đai 1', 'Đoạn cuối Hoàng Cầu – Voi Phục dài 2,2 km, mặt cắt 50 m; thông xe kỹ thuật 2/9/2026.'],
+    '2': ['Vành đai 2', 'Quy hoạch hơn 43 km, mặt cắt 50–72,5 m; đoạn trên cao Vĩnh Tuy – Ngã Tư Sở thông xe 11/1/2023.'],
+    '2.5': ['Vành đai 2,5', 'Các đoạn Nguyễn Trãi – Đầm Hồng, Đầm Hồng – QL1A giải phóng mặt bằng xong 2025–2026.'],
+    '3': ['Vành đai 3', 'Khoảng 65 km, vòng đầu tiên khép kín; cầu cạn Mai Dịch – Nam Thăng Long 5.343 tỷ đồng.'],
+    '3.5': ['Vành đai 3,5', 'Mặt cắt 60–80 m, 6 làn; nhiều đoạn đang thi công, đoạn Mê Linh đang lập dự án.'],
+    '4': ['Vành đai 4', '113,52 km qua Hà Nội, Hưng Yên, Bắc Ninh; 85.563 tỷ đồng; cao tốc phấn đấu xong trước APEC 2027.'],
+    '5': ['Vành đai 5', 'Quy hoạch 349 km qua 7 tỉnh, thành; 288.268 tỷ đồng sơ bộ; khởi công 2027, hoàn thành trước 2035. Đoạn này là đường địa phương mang tên Vành đai 5.']
+  };
+
+  // ---------- biểu đồ (HTML, có tooltip và bảng) ----------
+  const SHARE = [['VĐ1 HC–VP', 6000, 6627], ['VĐ2 VT–NTS', 6600, 9997], ['VĐ5', 78143, 288268], ['VĐ4', 19000, 85813]];
+  const KM = [['VĐ1 HC–VP', 6000, 2.2], ['VĐ2 VT–NTS', 6600, 5.08], ['VĐ5', 78143, 349], ['VĐ4', 19000, 113.52]];
+  const fmt = (x, d = 0) => x.toLocaleString('vi-VN', { maximumFractionDigits: d, minimumFractionDigits: d });
+  const tip = document.getElementById('tip');
+  function bindTip(el, text) {
+    el.setAttribute('data-tip', ''); el.setAttribute('tabindex', '0'); el.setAttribute('aria-label', text);
+    const show = (x, y) => { tip.textContent = text; tip.style.left = (x + 12) + 'px'; tip.style.top = (y + 12) + 'px'; tip.style.opacity = 1; };
+    el.addEventListener('mousemove', e => show(e.clientX, e.clientY));
+    el.addEventListener('mouseleave', () => tip.style.opacity = 0);
+    el.addEventListener('focus', () => { const r = el.getBoundingClientRect(); show(r.left, r.bottom); });
+    el.addEventListener('blur', () => tip.style.opacity = 0);
+  }
+  (function charts() {
+    const cs = document.getElementById('chartShare'), tS = document.getElementById('tShare');
+    SHARE.forEach(([lab, g, tot]) => {
+      const pct = g / tot * 100;
+      const row = document.createElement('div'); row.className = 'row';
+      row.innerHTML = `<span class="lab">${lab}</span><div class="bar1"><div class="track" style="flex:1"><span style="flex:${g};background:#e8532f"></span><span style="flex:${tot - g};background:#4f93c4"></span></div><span class="val">${fmt(pct)}%</span></div>`;
+      bindTip(row.querySelector('.track'), `${lab}: GPMB ${fmt(g)} / ${fmt(tot)} tỷ đồng (${fmt(pct, 1)}%)`);
+      cs.appendChild(row);
+      tS.insertAdjacentHTML('beforeend', `<tr><td>${lab}</td><td>${fmt(g)}</td><td>${fmt(tot)}</td><td>${fmt(pct, 1)}%</td></tr>`);
+    });
+    const ck = document.getElementById('chartKm'), tK = document.getElementById('tKm');
+    const max = Math.max(...KM.map(k => k[1] / k[2]));
+    KM.forEach(([lab, g, km]) => {
+      const v = g / km;
+      const row = document.createElement('div'); row.className = 'row';
+      row.innerHTML = `<span class="lab">${lab}</span><div class="bar1"><div class="track" style="width:${Math.max(1.5, v / max * 100)}%"><span style="flex:1;background:#e8532f"></span></div><span class="val">${fmt(v)}</span></div>`;
+      bindTip(row.querySelector('.track'), `${lab}: ${fmt(g)} tỷ / ${fmt(km, 2)} km = ${fmt(v)} tỷ/km`);
+      ck.appendChild(row);
+      tK.insertAdjacentHTML('beforeend', `<tr><td>${lab}</td><td>${fmt(g)}</td><td>${fmt(km, 2)}</td><td>${fmt(v)}</td></tr>`);
+    });
+  })();
+
+  const ticks = document.getElementById('ticks');
+  RINGS.forEach(() => ticks.appendChild(document.createElement('span')));
+
+  const map = new maplibregl.Map({
+    container: 'map',
+    style: { version: 8, sources: {}, light: { anchor: 'viewport', position: [1.25, 200, 48], color: '#ffffff', intensity: 0.32 },
+      layers: [{ id: 'bg', type: 'background', paint: { 'background-color': '#12171a' } }] },
+    center: [105.83, 21.02], zoom: 11, pitch: 45, bearing: -10, attributionControl: false, fadeDuration: 0, maxPitch: 80,
+    minZoom: 8.5, maxZoom: 19, scrollZoom: false, boxZoom: false, dragRotate: true, pitchWithRotate: true, touchPitch: true,
+    touchZoomRotate: true, dragPan: !matchMedia('(pointer: coarse)').matches
+  });
+  map.touchZoomRotate.enableRotation();
+
+  let ringC = {}, corrC = {}, ringB = {}, allB = null, markers = {}, pivot = null, lastData = { focus: 'all', view: 'overview' };
+  const viewPad = () => narrow() ? { top: 0, bottom: Math.round(innerHeight * 0.42), left: 0, right: 0 }
+                                 : { top: 0, bottom: 0, left: Math.round(Math.min(480, innerWidth * 0.4)), right: 0 };
+  const fitPad = () => narrow() ? { top: 50, bottom: innerHeight * 0.48, left: 20, right: 20 } : { top: 60, bottom: 60, left: Math.min(520, innerWidth * 0.42), right: 70 };
+  function fit(b, extra, pitch, bearing) {
+    const c = map.cameraForBounds(b, { padding: fitPad() }) || { zoom: 11 };
+    return { center: b.getCenter(), zoom: c.zoom + (extra || 0) - (pitch > 40 ? 0.25 : 0), padding: viewPad(), pitch, bearing };
+  }
+  function cam(d) {
+    const f = d.focus, v = d.view;
+    if (f !== 'all' && d.center) {
+      const c = d.center.split(',').map(Number);
+      return { center: c, zoom: (+d.zoom || 14) - (narrow() ? 0.6 : 0), pitch: +d.pitch || 60, bearing: +d.bear || 0, padding: viewPad() };
+    }
+    if (f !== 'all' && d.corr && corrC[d.corr] && !v) {
+      return { center: corrC[d.corr], zoom: (+d.zoom || 14.5) - (narrow() ? 0.6 : 0), pitch: +d.pitch || 60, bearing: +d.bear || 0, padding: viewPad() };
+    }
+    if (v === 'r4') return fit(ringB['4'], 0.85, +d.pitch || 50, 15);
+    if (v === 'r5') return fit(ringB['5'] || allB, -0.45, +d.pitch || 20, 0);
+    if (v === 'core') return fit(ringB['2'], 0.2, 55, 20);
+    if (v === 'mid') return fit(ringB['3'], 0, 55, -25);
+    if (v === 'outer') return fit(ringB['4'], -0.2, 45, 0);
+    if (v === 'overview2') return fit(allB, 0.35, 50, 18);
+    if (v === 'overview2b') return fit(ringB['3'], 0.3, 55, -30);
+    return fit(allB, 0, 42, -10);
+  }
+
+  // ---------- màu ----------
+  const hov = (e) => ['case', ['boolean', ['feature-state', 'sel'], false], '#ffffff', ['boolean', ['feature-state', 'hover'], false], '#ffe2d8', e];
+  const stCol = ['match', ['get', 'st'], 'done', C.done, 'build', C.build, C.plan];
+  function apply(d) {
+    const f = d.focus, solo = f !== 'all';
+    map.setPaintProperty('ring', 'fill-extrusion-color', hov(solo ? ['case', ['==', ['get', 'r'], f], stCol, C.dim] : stCol));
+    map.setPaintProperty('ring-glow', 'line-opacity', solo ? ['case', ['==', ['get', 'r'], f], 0.75, 0] : 0.35);
+    map.setPaintProperty('ring-core', 'line-opacity', solo ? ['case', ['==', ['get', 'r'], f], 1, 0.12] : 0.9);
+    const isF = ['==', ['get', 'r'], f], w = (a, b) => solo ? ['case', isF, a, b] : a * 0.65;
+    map.setPaintProperty('ring-core', 'line-width', ['interpolate', ['linear'], ['zoom'], 8, w(3.5, 1.2), 11, w(4, 1.1), 13.5, w(2, 1), 14.5, 0]);
+    map.setPaintProperty('corr', 'fill-opacity', solo ? ['case', ['==', ['get', 'id'], d.corr || ''], 0.3, 0] : 0);
+    map.setPaintProperty('house', 'fill-extrusion-opacity', 0.95);
+    map.setPaintProperty('house', 'fill-extrusion-color', hov(solo ? ['case', ['==', ['get', 'id'], d.corr || ''], C.gpmb, '#5a2a20'] : C.gpmb));
+    map.setPaintProperty('road', 'line-opacity', solo ? 0.5 : 0.9);
+    spot.classList.toggle('on', solo && !!d.corr);
+    labelsFor(d);
+    RINGS.forEach((r, i) => {
+      markers[r] && markers[r].classList.toggle('focus', r === f);
+      markers[r] && markers[r].classList.toggle('dim', solo && r !== f);
+      ticks.children[i].className = r === f ? 'on' : '';
+    });
+  }
+
+  // ---------- nhãn theo đoạn đang đọc ----------
+  const LBL = [];
+  function labelsFor(d) {
+    const f = d.focus, v = d.view || '';
+    const wide = f === 'all' || f === '4' || v === 'r4' || v === 'outer';
+    LBL.forEach(({ el, p }) => {
+      let on = false;
+      if (p.t === 'street') on = p.r === f;
+      else if (p.t === 'area') on = !!d.corr && p.corr === d.corr;
+      else if (p.t === 'lm') on = p.r === f;
+      else if (p.t === 'town') on = wide;
+      el.classList.toggle('hide', !on);
+    });
+  }
+
+  // ---------- đèn rọi theo tâm xoay ----------
+  const spot = document.getElementById('spot');
+  function placeSpot() { if (!pivot) return; const p = map.project(pivot); spot.style.setProperty('--sx', p.x + 'px'); spot.style.setProperty('--sy', (p.y - 60) + 'px'); }
+
+  // ---------- điều hướng ----------
+  let spin = null, speed = 0.0016, orbitOn = false, userMoved = false;
+  const info = document.getElementById('info');
+  function go(d) {
+    const c = cam(d);
+    pivot = c.center; lastData = d; userMoved = false;
+    clearSel(); info.hidden = true;
+    cancelAnimationFrame(spin);
+    if (reduce) map.jumpTo(c); else { map.flyTo({ ...c, duration: 2400, curve: 1.3, essential: true }); map.once('moveend', drift); }
+    apply(d);
+  }
+  function drift() {
+    cancelAnimationFrame(spin);
+    if (userMoved && !orbitOn) return;
+    let last = performance.now();
+    const tick = (t) => { const dt = Math.min(64, t - last); last = t; if (!map.isMoving() || orbitOn) map.setBearing(map.getBearing() + dt * speed); spin = requestAnimationFrame(tick); };
+    spin = requestAnimationFrame(tick);
+  }
+  const orbitBtn = document.getElementById('orbit');
+  function setOrbit(on) {
+    orbitOn = on; orbitBtn.setAttribute('aria-pressed', on); speed = on ? 360 / 24000 : 0.0016;
+    if (on) { userMoved = false; cancelAnimationFrame(spin); map.easeTo({ center: pivot || map.getCenter(), padding: viewPad(), duration: 700 }); map.once('moveend', () => orbitOn && drift()); }
+    else if (userMoved) cancelAnimationFrame(spin);
+  }
+  ['dragstart', 'rotatestart', 'pitchstart', 'zoomstart'].forEach(ev => map.on(ev, e => { if (!e.originalEvent) return; userMoved = true; cancelAnimationFrame(spin); if (orbitOn) setOrbit(false); }));
+  const ease = (o) => { userMoved = true; cancelAnimationFrame(spin); map.easeTo({ ...o, duration: 500 }); };
+  document.getElementById('zin').onclick = () => ease({ zoom: map.getZoom() + 0.7 });
+  document.getElementById('zout').onclick = () => ease({ zoom: map.getZoom() - 0.7 });
+  const rotateBy = (deg) => ease({ bearing: map.getBearing() + deg, center: pivot || map.getCenter(), padding: viewPad() });
+  document.getElementById('rl').onclick = () => rotateBy(-45);
+  document.getElementById('rr').onclick = () => rotateBy(45);
+  document.getElementById('pup').onclick = () => ease({ pitch: Math.min(80, map.getPitch() + 15) });
+  document.getElementById('pdown').onclick = () => ease({ pitch: 0 });
+  document.getElementById('compass').onclick = () => ease({ bearing: 0 });
+  document.getElementById('reset').onclick = () => { setOrbit(false); go(lastData); };
+  orbitBtn.onclick = () => setOrbit(!orbitOn);
+  const compassIcon = document.querySelector('#compass svg');
+  map.on('rotate', () => { compassIcon.style.transform = 'rotate(' + (-map.getBearing()) + 'deg)'; });
+  document.getElementById('map').addEventListener('wheel', (e) => {
+    if (!(e.ctrlKey || e.metaKey)) return;
+    e.preventDefault(); userMoved = true; cancelAnimationFrame(spin);
+    map.easeTo({ zoom: map.getZoom() - e.deltaY * 0.004, around: map.unproject([e.clientX, e.clientY]), duration: 120 });
+  }, { passive: false });
+
+  // ---------- bấm, rê chuột ----------
+  let hovered = null, selected = null;
+  const setState = (ref, k, v) => ref && map.setFeatureState({ source: ref.source, id: ref.id }, { [k]: v });
+  function clearSel() { if (selected) { setState(selected, 'sel', false); selected = null; } }
+  function pick(e) { const fs = map.queryRenderedFeatures(e.point, { layers: ['house', 'ring'] }); return fs.length ? fs[0] : null; }
+  function showInfo(p, layer) {
+    let title, badge, col, text, rows = [];
+    if (layer === 'house') {
+      const cc = CORR[p.id];
+      title = cc.unit > 1 ? `Nhóm ${fmt(p.i)} · ${fmt((p.i - 1) * cc.unit + 1)}–${fmt(Math.min(p.i * cc.unit, cc.n))} / ${fmt(cc.n)} hộ` : `Hộ ${fmt(p.i)} / ${fmt(cc.n)}`;
+      badge = 'Phải di dời'; col = C.gpmb; text = cc.name + '. ' + cc.note + ' Khối nhà là minh họa số lượng, không phải vị trí từng nhà.';
+      rows = [['Hành lang', `${cc.w} m`], ['1 khối', `${cc.unit} hộ`]];
+    } else {
+      const f = FACT[p.r] || ['', ''];
+      title = (p.nm ? p.nm + ' · ' : '') + f[0]; badge = p.st === 'done' ? 'Đã khai thác' : p.st === 'build' ? 'Đang thi công' : 'Quy hoạch';
+      col = p.st === 'done' ? C.done : p.st === 'build' ? C.build : C.plan; text = f[1];
+      rows = [['Đoạn này', p.el ? 'Đường trên cao' : 'Đi trên mặt đất']];
+    }
+    info.querySelector('.ih').textContent = title;
+    const bd = info.querySelector('.ib'); bd.textContent = badge; bd.style.background = col;
+    info.querySelector('.it').textContent = text;
+    const dl = info.querySelector('dl'); dl.innerHTML = '';
+    rows.forEach(([k, v]) => { const dt = document.createElement('dt'); dt.textContent = k; const dd = document.createElement('dd'); dd.textContent = v; dl.append(dt, dd); });
+    info.hidden = false;
+  }
+  info.querySelector('.ix').onclick = () => { clearSel(); info.hidden = true; };
+  function setupPicking() {
+    map.on('mousemove', (e) => {
+      const f = pick(e), ref = f ? { source: f.source, id: f.id } : null;
+      if (hovered && (!ref || ref.id !== hovered.id || ref.source !== hovered.source)) setState(hovered, 'hover', false);
+      if (ref) setState(ref, 'hover', true);
+      hovered = ref; map.getCanvas().style.cursor = ref ? 'pointer' : '';
+    });
+    map.on('click', (e) => {
+      const f = pick(e); clearSel();
+      if (!f) { info.hidden = true; return; }
+      selected = { source: f.source, id: f.id }; setState(selected, 'sel', true);
+      showInfo(f.properties, f.layer.id);
+      pivot = [e.lngLat.lng, e.lngLat.lat]; userMoved = true; cancelAnimationFrame(spin);
+      map.easeTo({ center: pivot, padding: viewPad(), duration: 650 });
+      if (orbitOn) map.once('moveend', () => orbitOn && drift());
+    });
+  }
+
+  // ---------- dựng khối hộ dân dọc hành lang ----------
+  function rand(seed) { let s = seed >>> 0; return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; }
+  function houses(corrLines) {
+    const out = [];
+    Object.entries(CORR).forEach(([id, cc]) => {
+      if (!cc.n) return;
+      const lines = corrLines.features.filter(f => f.properties.id === id);
+      if (!lines.length) return;
+      // gộp các đoạn thành chuỗi điểm theo mét
+      const segs = [];
+      lines.forEach(f => { const g = f.geometry.coordinates; for (let i = 0; i < g.length - 1; i++) segs.push([g[i], g[i + 1]]); });
+      const lat0 = segs[0][0][1], kx = Math.cos(lat0 * Math.PI / 180) * 111320, ky = 110540;
+      const lens = segs.map(([a, b]) => Math.hypot((b[0] - a[0]) * kx, (b[1] - a[1]) * ky));
+      const L = lens.reduce((a, b) => a + b, 0);
+      const count = Math.ceil(cc.n / cc.unit);
+      const road = Math.min(cc.w * 0.45, 22);           // phần lòng đường ở giữa không đặt khối
+      const band = Math.max(4, cc.w / 2 - road / 2);
+      const size = cc.unit > 1 ? 22 : Math.max(4, Math.min(9, Math.sqrt((L * band * 2) / count) * 0.75));
+      const R = rand(id.length * 7919 + count);
+      for (let i = 0; i < count; i++) {
+        let s = (i + 0.5) / count * L, k = 0;
+        while (k < lens.length - 1 && s > lens[k]) { s -= lens[k]; k++; }
+        const [a, b] = segs[k], t = lens[k] ? s / lens[k] : 0;
+        const dx = (b[0] - a[0]) * kx, dy = (b[1] - a[1]) * ky, len = Math.hypot(dx, dy) || 1;
+        const ux = dx / len, uy = dy / len, nx = -uy, ny = ux;
+        const side = i % 2 ? 1 : -1, off = side * (road / 2 + size / 2 + R() * Math.max(0.1, band - size));
+        const cx = (a[0] + (b[0] - a[0]) * t) * kx + nx * off, cy = (a[1] + (b[1] - a[1]) * t) * ky + ny * off;
+        const h = size / 2, ll = (x, y) => [+(x / kx).toFixed(7), +(y / ky).toFixed(7)];
+        const ring = [[cx - ux * h - nx * h, cy - uy * h - ny * h], [cx + ux * h - nx * h, cy + uy * h - ny * h], [cx + ux * h + nx * h, cy + uy * h + ny * h], [cx - ux * h + nx * h, cy - uy * h + ny * h]];
+        const poly = ring.map(([x, y]) => ll(x, y)); poly.push(poly[0]);
+        const floors = cc.unit > 1 ? 1 : 1 + Math.floor(R() * 4);
+        out.push({ type: 'Feature', geometry: { type: 'Polygon', coordinates: [poly] }, properties: { id, i: i + 1, t: cc.unit > 1 ? 14 : floors * 3.4 } });
+      }
+    });
+    return { type: 'FeatureCollection', features: out };
+  }
+
+  map.on('load', async () => {
+    let data;
+    try { data = await (await fetch('rings-v3.json', { cache: 'no-cache' })).json(); } catch (e) { console.error(e); return; }
+    const add = (id, d, gid) => map.addSource(id, { type: 'geojson', data: d, generateId: !!gid });
+    add('water', data.water); add('rivers', data.rivers); add('roads', data.roads);
+    add('ring', data.ribbons, true); add('ringline', data.ringlines); add('corr', data.corridors); add('house', houses(data.corrlines), true);
+    map.addLayer({ id: 'water', type: 'fill', source: 'water', paint: { 'fill-color': '#0b2230' } });
+    map.addLayer({ id: 'rivers', type: 'line', source: 'rivers', paint: { 'line-color': '#0d2a3a', 'line-width': ['interpolate', ['linear'], ['zoom'], 9, 1.5, 14, 14] } });
+    map.addLayer({ id: 'road', type: 'line', source: 'roads', layout: { 'line-cap': 'round' }, paint: {
+      'line-color': ['match', ['get', 'c'], 'major', '#3d4a53', '#283137'], 'line-width': ['interpolate', ['linear'], ['zoom'], 9, ['match', ['get', 'c'], 'major', 0.9, 0.3], 15, ['match', ['get', 'c'], 'major', 9, 4]] } });
+    map.addLayer({ id: 'corr', type: 'fill', source: 'corr', paint: { 'fill-color': C.gpmb, 'fill-opacity': 0 } });
+    map.addLayer({ id: 'ring-glow', type: 'line', source: 'ringline', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: {
+      'line-color': stCol, 'line-width': ['interpolate', ['linear'], ['zoom'], 9, 6, 15, 30], 'line-blur': ['interpolate', ['linear'], ['zoom'], 9, 4, 15, 18], 'line-opacity': 0.35 } });
+    // nét tuyến rõ ở mức nhìn xa (dải 3D quá mảnh khi thu nhỏ)
+    map.addLayer({ id: 'ring-core', type: 'line', source: 'ringline', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: {
+      'line-color': stCol, 'line-width': ['interpolate', ['linear'], ['zoom'], 8, 2.2, 11, 3, 13.5, 1.5, 14.5, 0], 'line-opacity': 0.9 } });
+    map.addLayer({ id: 'ring', type: 'fill-extrusion', source: 'ring', paint: {
+      'fill-extrusion-color': stCol, 'fill-extrusion-base': ['get', 'b'], 'fill-extrusion-height': ['get', 't'], 'fill-extrusion-opacity': 0.97 } });
+    map.addLayer({ id: 'house', type: 'fill-extrusion', source: 'house', paint: {
+      'fill-extrusion-color': C.gpmb, 'fill-extrusion-base': 0, 'fill-extrusion-height': ['get', 't'], 'fill-extrusion-opacity': 0.95 } });
+    map.on('move', placeSpot);
+    setupPicking();
+
+    // tâm từng vòng, từng hành lang, khung bao
+    const bb = (fs) => { const b = new maplibregl.LngLatBounds(); fs.forEach(f => f.geometry.coordinates.forEach(c => b.extend(c))); return b; };
+    RINGS.forEach(r => { const fs = data.ringlines.features.filter(f => f.properties.r === r); if (fs.length) { ringB[r] = bb(fs); ringC[r] = ringB[r].getCenter().toArray(); } });
+    allB = bb(data.ringlines.features);
+    Object.keys(CORR).forEach(id => { const fs = data.corrlines.features.filter(f => f.properties.id === id); if (fs.length) corrC[id] = bb(fs).getCenter().toArray(); });
+    // nhãn tên vòng: mỗi vòng đặt ở một hướng khác nhau (điểm xa nhất theo hướng đó) để không chồng nhau
+    const DIR = { '1': 100, '2': 35, '2.5': -35, '3': 150, '3.5': 210, '4': -80, '5': 60 };
+    RINGS.forEach(r => {
+      const fs = data.ringlines.features.filter(f => f.properties.r === r); if (!fs.length) return;
+      const a = DIR[r] * Math.PI / 180, ux = Math.cos(a), uy = Math.sin(a);
+      let top = null, best = -Infinity;
+      fs.forEach(f => f.geometry.coordinates.forEach(c => { const s = c[0] * ux * 0.93 + c[1] * uy; if (s > best) { best = s; top = c; } }));
+      const el = document.createElement('div'); el.className = 'tag'; el.innerHTML = `<i style="background:${fs[0].properties.st === 'done' ? C.done : C.build}"></i>${LABEL[r]}`;
+      markers[r] = el; new maplibregl.Marker({ element: el, anchor: 'bottom' }).setLngLat(top).addTo(map);
+    });
+
+    // nhãn tên phố, phường/xã, điểm mốc, đô thị
+    (data.labels ? data.labels.features : []).forEach(f => {
+      const p = f.properties, el = document.createElement('div');
+      el.className = 'lb hide lb-' + p.t;
+      if (p.t === 'lm') el.innerHTML = '<i></i>' + p.n; else el.textContent = p.n;
+      LBL.push({ el, p });
+      new maplibregl.Marker({ element: el, anchor: p.t === 'lm' ? 'bottom' : 'center', offset: p.t === 'lm' ? [0, -6] : [0, 0] }).setLngLat(f.geometry.coordinates).addTo(map);
+    });
+    labelsFor(lastData);
+
+    let current = null, ticking = false;
+    const steps = [...document.querySelectorAll('.step')];
+    function pickStep() {
+      ticking = false;
+      const anchor = innerHeight * (narrow() ? 0.68 : 0.5);
+      let best = null, bestD = Infinity;
+      steps.forEach(s => { const r = s.querySelector('.card').getBoundingClientRect(); const dd = r.top <= anchor && r.bottom >= anchor ? 0 : Math.min(Math.abs(r.top - anchor), Math.abs(r.bottom - anchor)); if (dd < bestD) { bestD = dd; best = s; } });
+      if (best && best !== current) { current = best; go(best.dataset); }
+    }
+    addEventListener('scroll', () => { if (!ticking) { ticking = true; requestAnimationFrame(pickStep); } }, { passive: true });
+    map.jumpTo(cam({ focus: 'all', view: 'overview' }));
+    apply({ focus: 'all' });
+    pickStep();
+    addEventListener('resize', () => current && map.jumpTo(cam(current.dataset)));
+  });
+})();
+</script>

@@ -85,8 +85,22 @@ Chạy server tĩnh (`.claude/launch.json` với `python -m http.server 8765 -d 
 - `Artifact` publish `index.html` với `files: {"city-vN.json": …, "<ảnh>.webp": …}`, `icon: "map"`, description một câu. Lần sau chỉ publish lại cùng `file_path`; khi đổi file dữ liệu thì truyền tên mới và `null` cho tên cũ.
 - Mở link Claude một lần để chắc chắn trang và dữ liệu tải được (trang nằm trong iframe, cuộn bằng con lăn trên vùng trang).
 
+## Biến thể: bài về tuyến đường, hạ tầng dạng tuyến
+Đã làm cho bài "Bảy vòng vành đai Hà Nội" (`E:\Personal\MagGen\vanh-dai`). Khác bài tòa nhà ở chỗ:
+- **Tìm tuyến trong OSM**: tuyến mới thường có tên riêng ("Đường Vành đai 1", "Đường cao tốc vành đai 4…", thẻ `wikipedia`), tuyến cũ mang tên phố (Trường Chinh, Phạm Văn Đồng…). Khớp bằng danh sách tên + bbox + loại đường trong `rules.json`; cẩn thận chuỗi con ("Vành đai 2" khớp nhầm "Vành đai 2.5": dùng `exclude_names`). Đoạn trống giữa tuyến thường là đường cũ được mở rộng (La Thành) hoặc đoạn đang thi công chưa tên: thêm theo `ids`.
+- **`scripts/build_rings.py extract.json rules.json out.json`** dựng: dải 3D cho tuyến (đoạn `bridge`/`layer≥1` nâng lên 11–13,5 m), đường tâm để làm nhãn và camera, hành lang giải phóng mặt bằng (dải rộng bằng mặt cắt), nền đường/sông/hồ đã lọc gọn (~6 MB cho cả vùng Hà Nội).
+- **Nhấn mạnh đền bù**: khối hộ dân dựng trong trang (hàm `houses()` của `vanh-dai/index.html`) xếp dọc hành lang, số khối = số hộ công bố (hoặc 1 khối = 10 hộ khi quá nhiều), bấm để xem; kèm biểu đồ HTML "tỷ trọng GPMB" và "tiền GPMB mỗi km" (đã chạy validator dataviz cho cặp màu #e8532f/#4f93c4 trên nền #171d21), có tooltip và bảng số liệu.
+- **Nhãn tên phố, phường/xã, điểm mốc**: `scripts/pbf_places.py` trích địa danh (place=*, và tên nút giao/cầu cần tìm) từ file pbf; `scripts/add_labels.py extract.json places.json labels.json data.json` thêm lớp `labels` (tên phố dọc vòng đang xem, phường/xã trong bán kính quanh hành lang, điểm mốc khai báo tay theo bài, đô thị cho góc nhìn rộng). Lọc tên nhánh rẽ ("Đi …", "Hướng đi…"), tên làng cổ ("Kẻ …"). Trong trang, nhãn là HTML marker `pointer-events:none`, bật/tắt theo đoạn trong `labelsFor()`.
+- **Tuyến chưa xây (không có trong OSM)**: không tự vẽ hướng tuyến; chỉ trình bày bằng số liệu.
+
+## Khi Overpass quá tải
+Overpass hay lỗi 502/429 nhiều giờ liền. Dự phòng chắc chắn: hỏi người dùng rồi tải bản trích Geofabrik (`https://download.geofabrik.de/asia/vietnam-latest.osm.pbf`, ~330 MB) vào thư mục riêng, `pip install --user osmium`, rồi chạy `python -P scripts/pbf_extract.py <pbf> extract.json S,W,N,E --highways motorway,trunk,primary,secondary,tertiary,construction [--buildings]` (dùng `-P`, không dùng `-I`, vì `-I` chặn thư viện cài ở thư mục người dùng). Mất khoảng 1 phút cho cả Việt Nam; đầu ra cùng định dạng Overpass.
+
 ## Tệp trong skill
 - `references/example-muong-thanh.html`: bản hoàn chỉnh (engine + nội dung mẫu).
 - `scripts/osm_fetch.sh`: tìm tòa nhà theo tên, tải geometry theo id, tải dữ liệu nền khu vực, có thử nhiều máy chủ Overpass.
-- `scripts/build_data.py`: gộp dữ liệu OSM thành file GeoJSON cho trang.
+- `scripts/build_data.py`: gộp dữ liệu OSM thành file GeoJSON cho trang (bài tòa nhà).
+- `scripts/build_rings.py`: dựng dữ liệu cho bài tuyến đường (dải 3D, hành lang GPMB, nền gọn).
+- `scripts/pbf_extract.py`: trích dữ liệu từ file .osm.pbf khi Overpass quá tải.
+- `scripts/pbf_places.py`, `scripts/add_labels.py`: địa danh và lớp nhãn cho bản đồ.
 - `scripts/check_scroll.js`, `scripts/check_pivot.js`: kiểm tra tự động trong trình duyệt.

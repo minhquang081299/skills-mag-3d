@@ -1,0 +1,123 @@
+{
+ "landmarks": [
+  {
+   "name": "Nút Hoàng Cầu",
+   "r": "1",
+   "lat": 21.021,
+   "lon": 105.8253
+  },
+  {
+   "name": "Nút Voi Phục",
+   "r": "1",
+   "lat": 21.0285,
+   "lon": 105.8062
+  },
+  {
+   "name": "Ngã Tư Sở",
+   "r": "2",
+   "lat": 21.0025,
+   "lon": 105.8198
+  },
+  {
+   "name": "Ngã Tư Vọng",
+   "r": "2",
+   "lat": 20.9974,
+   "lon": 105.8422
+  },
+  {
+   "name": "Cầu Vĩnh Tuy",
+   "r": "2",
+   "lat": 21.0247,
+   "lon": 105.8949
+  },
+  {
+   "name": "Đầm Hồng",
+   "r": "2.5",
+   "lat": 20.9908,
+   "lon": 105.8249
+  },
+  {
+   "name": "Nút Mai Dịch",
+   "r": "3",
+   "lat": 21.0364,
+   "lon": 105.7804
+  },
+  {
+   "name": "Nam Thăng Long",
+   "r": "3",
+   "lat": 21.0659,
+   "lon": 105.7887
+  },
+  {
+   "name": "Cầu Thăng Long",
+   "r": "3",
+   "lat": 21.1031,
+   "lon": 105.787
+  },
+  {
+   "name": "Cầu Thanh Trì",
+   "r": "3",
+   "lat": 20.9987,
+   "lon": 105.9065
+  },
+  {
+   "name": "Nút Pháp Vân",
+   "r": "3",
+   "lat": 20.9611,
+   "lon": 105.8475
+  },
+  {
+   "name": "QL1A · Ngọc Hồi",
+   "r": "3.5",
+   "lat": 20.9445,
+   "lon": 105.8446
+  },
+  {
+   "name": "Cầu Hồng Hà",
+   "r": "4",
+   "lat": 21.1651,
+   "lon": 105.7012
+  },
+  {
+   "name": "Cầu Mễ Sở",
+   "r": "4",
+   "lat": 20.8967,
+   "lon": 105.9156
+  }
+ ],
+ "towns": [
+  "Thường Tín",
+  "Văn Giang",
+  "Thuận Thành",
+  "Tiên Du",
+  "Từ Sơn",
+  "Yên Phong",
+  "Phùng",
+  "Kinh Bắc",
+  "Mỹ Hào",
+  "Sơn Tây",
+  "Đông Anh",
+  "Sóc Sơn",
+  "Hà Đông",
+  "Long Biên",
+  "Hoàn Kiếm"
+ ],
+ "street_min_m": 900,
+ "area_radius_m": 1200,
+ "skip_streets": [],
+ "skip_street_prefix": [
+  "Đi ",
+  "Hướng đi",
+  "xe máy",
+  "Cầu vượt",
+  "nối "
+ ],
+ "skip_street_contains": [
+  "vành đai",
+  "Vành Đai"
+ ],
+ "skip_area_prefix": [
+  "Kẻ ",
+  "Công Luận"
+ ]
+}
