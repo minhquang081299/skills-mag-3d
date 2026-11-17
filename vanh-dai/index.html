@@ -731,7 +731,7 @@ details.table td:first-child, details.table th:first-child { text-align: left; }
       steps.forEach(s => { const r = s.querySelector('.card').getBoundingClientRect(); const dd = r.top <= anchor && r.bottom >= anchor ? 0 : Math.min(Math.abs(r.top - anchor), Math.abs(r.bottom - anchor)); if (dd < bestD) { bestD = dd; best = s; } });
       if (best && best !== current) { current = best; go(best.dataset); }
     }
-    addEventListener('scroll', () => { if (!ticking) { ticking = true; requestAnimationFrame(pickStep); } }, { passive: true });
+    addEventListener('scroll', () => { if (document.hidden) { pickStep(); return; } if (!ticking) { ticking = true; requestAnimationFrame(pickStep); } }, { passive: true });
     map.jumpTo(cam({ focus: 'all', view: 'overview' }));
     apply({ focus: 'all' });
     pickStep();
