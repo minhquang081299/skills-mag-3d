@@ -1,0 +1,6 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    { "name": "mag", "runtimeExecutable": "python", "runtimeArgs": ["-m", "http.server", "8765", "-d", "muong-thanh"], "port": 8765 }
+  ]
+}

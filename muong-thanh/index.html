@@ -1,0 +1,1164 @@
+<meta charset="utf-8">
+<title>12 công trình Mường Thanh</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Be+Vietnam+Pro:wght@400;500;600&family=Roboto+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: bản đồ 3D cố định toàn màn hình; cột bài viết cuộn phía trên, mỗi đoạn đưa camera tới một công trình
+   và "mổ" khối nhà: xanh bản vẽ = trong quy hoạch, cam cảnh báo = vượt hoặc sai quy hoạch.
+   Một giao diện tối duy nhất (bản vẽ hồ sơ đêm). */
+:root {
+  color-scheme: dark;
+  --ink: #0f1316;
+  --slab: #171d21;
+  --slab-2: #1f272c;
+  --rule: #33404a;
+  --paper: #e9ecea;
+  --muted: #9aa6ad;
+  --warn: #ff5a36;      /* vượt / sai quy hoạch */
+  --warn-soft: #a8432c;
+  --plan: #7fb0d0;      /* trong quy hoạch, màu bản vẽ */
+  --tape: #f2c230;
+  --f-display: "Barlow Condensed", "Arial Narrow", "Roboto Condensed", sans-serif;
+  --f-body: "Be Vietnam Pro", "Segoe UI", Roboto, Arial, sans-serif;
+  --f-mono: "Roboto Mono", ui-monospace, Consolas, monospace;
+}
+html, body { background: var(--ink); color: var(--paper); }
+body { font-family: var(--f-body); font-size: 16px; line-height: 1.62; margin: 0; }
+
+#map { position: fixed; inset: 0; z-index: 0; background: var(--ink); }
+.maplibregl-map { overflow: hidden; position: fixed; }
+.maplibregl-canvas { position: absolute; left: 0; top: 0; }
+.maplibregl-canvas-container { position: absolute; inset: 0; }
+.maplibregl-marker { position: absolute; top: 0; left: 0; will-change: transform; }
+.maplibregl-ctrl-attrib, .maplibregl-ctrl-bottom-right, .maplibregl-ctrl-bottom-left { display: none; }
+#map::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(90deg, rgba(15,19,22,.82) 0%, rgba(15,19,22,.35) 34%, rgba(15,19,22,0) 58%);
+}
+
+.tag {
+  font-family: var(--f-mono); font-size: 11px; letter-spacing: .06em; font-weight: 500;
+  color: var(--paper); background: rgba(15,19,22,.78); border: 1px solid var(--rule);
+  padding: 3px 7px 3px 6px; white-space: nowrap; transform: translateY(-6px);
+  display: flex; align-items: center; gap: 6px; transition: opacity .4s, border-color .4s, color .4s;
+}
+.tag i { width: 7px; height: 7px; background: var(--warn-soft); display: block; }
+.tag.on { border-color: var(--warn); color: #fff; }
+.tag.on i { background: var(--warn); box-shadow: 0 0 0 4px rgba(255,90,54,.25); }
+.tag.dim { opacity: .35; }
+.tag.hide { opacity: 0; }
+.tag.focus { font-size: 13px; padding: 5px 10px 5px 8px; background: var(--warn); border-color: var(--warn); color: #140b08; font-weight: 600; z-index: 2; transform: translateY(-34px); }
+.tag.focus i { background: #140b08; box-shadow: none; }
+#spot {
+  position: fixed; inset: 0; z-index: 1; pointer-events: none; opacity: 0; transition: opacity .7s;
+  --sx: 50%; --sy: 50%;
+  background: radial-gradient(ellipse 340px 300px at var(--sx) var(--sy), rgba(10,12,14,0) 0%, rgba(10,12,14,0) 45%, rgba(10,12,14,.78) 100%);
+}
+#spot.on { opacity: 1; }
+@media (max-width: 760px) { #spot { background: radial-gradient(ellipse 220px 220px at var(--sx) var(--sy), rgba(10,12,14,0) 0%, rgba(10,12,14,0) 45%, rgba(10,12,14,.75) 100%); } }
+.sub {
+  font-family: var(--f-mono); font-size: 10.5px; letter-spacing: .06em; color: var(--ink);
+  background: var(--paper); padding: 1px 5px; white-space: nowrap; transition: opacity .4s;
+}
+.sub.hide { opacity: 0; }
+
+.bar {
+  position: fixed; z-index: 3; top: env(safe-area-inset-top, 0px); left: 0; right: 0;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding-block: 12px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  font-family: var(--f-mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted);
+  pointer-events: none;
+}
+.bar b { color: var(--paper); font-weight: 500; }
+.ticks { display: flex; gap: 4px; }
+.ticks span { width: 18px; height: 4px; background: var(--rule); transition: background .3s; }
+.ticks span.on { background: var(--warn); }
+.ticks span.past { background: var(--warn-soft); }
+
+.legend {
+  position: fixed; z-index: 3; right: max(16px, env(safe-area-inset-right, 0px)); bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  display: flex; gap: 14px; font-family: var(--f-mono); font-size: 11px; letter-spacing: .04em; color: var(--paper);
+  background: rgba(15,19,22,.85); border: 1px solid var(--rule); padding: 8px 12px; transition: opacity .4s;
+  pointer-events: none;
+}
+.legend span { display: flex; align-items: center; gap: 6px; }
+.legend i { width: 12px; height: 12px; display: block; }
+.legend .lp i { background: var(--plan); }
+.legend .lw i { background: var(--warn); }
+.legend .lm i { background: #e0245e; }
+.legend.hide { opacity: 0; }
+
+/* điều khiển bản đồ */
+#map { cursor: grab; }
+#map:active { cursor: grabbing; }
+.ctrl {
+  position: fixed; z-index: 3; right: max(16px, env(safe-area-inset-right, 0px)); top: 50%; transform: translateY(-50%);
+  display: grid; gap: 1px; background: var(--rule); border: 1px solid var(--rule);
+}
+.ctrl button {
+  width: 40px; height: 40px; display: grid; place-items: center; padding: 0; border: 0; cursor: pointer;
+  background: rgba(15,19,22,.92); color: var(--paper); font: 500 18px/1 var(--f-mono);
+}
+.ctrl button:hover { background: var(--slab-2); }
+.ctrl button:focus-visible { outline: 2px solid var(--tape); outline-offset: -2px; }
+.ctrl button[aria-pressed="true"] { background: var(--warn); color: #140b08; }
+.ctrl svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.ctrl .sep { height: 6px; background: var(--rule); }
+#compass svg { transition: transform .1s linear; }
+.hint {
+  position: fixed; z-index: 3; right: max(16px, env(safe-area-inset-right, 0px)); bottom: calc(60px + env(safe-area-inset-bottom, 0px));
+  font-family: var(--f-mono); font-size: 10.5px; letter-spacing: .04em; color: var(--muted); text-align: right;
+  background: rgba(15,19,22,.8); padding: 6px 10px; border: 1px solid var(--rule); pointer-events: none; max-width: 260px; line-height: 1.5;
+}
+.hint b { color: var(--paper); font-weight: 500; }
+.info {
+  position: fixed; z-index: 4; top: calc(56px + env(safe-area-inset-top, 0px)); right: calc(max(16px, env(safe-area-inset-right, 0px)) + 54px);
+  width: 290px; max-width: calc(100vw - 32px); box-sizing: border-box;
+  background: rgba(15,19,22,.96); border: 1px solid var(--rule); padding: 14px 16px; display: grid; gap: 8px; justify-items: start;
+}
+.info[hidden] { display: none; }
+.info .ib { font-family: var(--f-mono); font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: #140b08; padding: 2px 6px; font-weight: 500; }
+.info .ih { font-family: var(--f-display); font-size: 24px; font-weight: 700; line-height: 1.05; text-transform: uppercase; padding-right: 24px; }
+.info .it { font-size: 13px; line-height: 1.5; }
+.info dl { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; margin: 0; font-size: 12.5px; width: 100%; font-variant-numeric: tabular-nums; }
+.info dt { font-family: var(--f-mono); font-size: 10.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; padding-top: 2px; }
+.info dd { margin: 0; }
+.info .ix { position: absolute; top: 6px; right: 6px; width: 30px; height: 30px; border: 0; background: transparent; color: var(--muted); font-size: 20px; cursor: pointer; }
+.info .ix:hover { color: var(--paper); }
+.ulegend {
+  position: fixed; z-index: 3; right: max(16px, env(safe-area-inset-right, 0px)); bottom: calc(150px + env(safe-area-inset-bottom, 0px));
+  display: grid; gap: 4px; font-family: var(--f-mono); font-size: 11px; color: var(--paper);
+  background: rgba(15,19,22,.88); border: 1px solid var(--rule); padding: 8px 12px; transition: opacity .4s; pointer-events: none;
+}
+.ulegend b { font-weight: 500; color: var(--muted); letter-spacing: .06em; text-transform: uppercase; font-size: 10.5px; }
+.ulegend span { display: flex; align-items: center; gap: 6px; }
+.ulegend i { width: 11px; height: 11px; display: block; }
+.ulegend.hide { opacity: 0; }
+.ukey { display: grid; gap: 6px; }
+.ukey div { display: grid; grid-template-columns: 12px 1fr auto; gap: 8px; align-items: center; font-size: 13.5px; }
+.ukey i { width: 12px; height: 12px; display: block; }
+.ukey b { font-family: var(--f-mono); font-size: 12px; font-weight: 500; }
+@media (max-width: 760px) {
+  .info { top: auto; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); right: max(16px, env(safe-area-inset-right, 0px)); left: max(16px, env(safe-area-inset-left, 0px)); width: auto; }
+  .ulegend { bottom: auto; top: calc(84px + env(safe-area-inset-top, 0px)); right: auto; left: max(16px, env(safe-area-inset-left, 0px)); }
+  .ctrl { top: calc(84px + env(safe-area-inset-top, 0px)); transform: none; }
+  .ctrl button { width: 36px; height: 36px; }
+  .hint { display: none; }
+}
+
+.story {
+  position: relative; z-index: 2; pointer-events: none;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 0;
+}
+.step { min-height: 100vh; display: flex; align-items: center; padding-block: 18vh; box-sizing: border-box; }
+.card {
+  pointer-events: auto; width: min(440px, 100%); box-sizing: border-box; min-width: 0;
+  background: rgba(23,29,33,.94); border: 1px solid var(--rule);
+  padding: 26px 26px 24px; display: grid; gap: 14px; backdrop-filter: blur(6px);
+}
+.chapter .card { background: transparent; border: 0; backdrop-filter: none; padding-left: 0; }
+.chapter h2 { font-size: clamp(44px, 6vw, 68px); }
+.code { font-family: var(--f-mono); font-size: 12px; letter-spacing: .08em; color: var(--warn); display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.code em { font-style: normal; color: var(--muted); }
+h1, h2 { font-family: var(--f-display); font-weight: 700; text-wrap: balance; margin: 0; letter-spacing: .005em; text-transform: uppercase; }
+h1 { font-size: clamp(42px, 7vw, 76px); line-height: .94; }
+h2 { font-size: clamp(30px, 4.2vw, 42px); line-height: 1; }
+p { margin: 0; color: #cdd3d1; }
+p.lede { font-size: 18px; color: var(--paper); }
+.meta { font-family: var(--f-mono); font-size: 11.5px; color: var(--muted); letter-spacing: .04em; }
+.meta a { color: var(--paper); }
+.w { color: var(--warn); font-weight: 600; }
+.b { color: var(--plan); font-weight: 600; }
+
+.hero { min-height: 100vh; padding-block: 16vh 10vh; }
+.hero .card { width: min(560px, 100%); padding: 32px 30px 28px; }
+.tape { height: 10px; margin: -32px -30px 6px; background: repeating-linear-gradient(-45deg, var(--tape) 0 12px, var(--ink) 12px 24px); }
+.scroll-hint { font-family: var(--f-mono); font-size: 11px; letter-spacing: .1em; color: var(--muted); text-transform: uppercase; display: flex; align-items: center; gap: 10px; }
+.scroll-hint::after { content: ""; width: 1px; height: 26px; background: var(--muted); animation: drop 1.8s infinite; }
+@keyframes drop { 0% { transform: scaleY(.2); transform-origin: top; } 60% { transform: scaleY(1); } 100% { transform: scaleY(1); opacity: 0; } }
+
+.facts { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); }
+.facts div { padding: 12px 10px 10px 0; display: grid; gap: 2px; min-width: 0; align-content: start; }
+.facts div + div { padding-left: 12px; border-left: 1px solid var(--rule); }
+.facts strong { font-family: var(--f-display); font-size: 34px; line-height: 1; font-weight: 600; font-variant-numeric: tabular-nums; }
+.facts span { font-size: 12.5px; color: var(--muted); line-height: 1.35; }
+
+.cmp { width: 100%; border-collapse: collapse; font-size: 13.5px; font-variant-numeric: tabular-nums; }
+.cmp th { font-family: var(--f-mono); font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; font-weight: 500; text-align: right; padding: 0 0 6px; }
+.cmp th:first-child { text-align: left; color: var(--muted); }
+.cmp th.b, .cmp td.b { color: var(--plan); }
+.cmp th.w, .cmp td.w { color: var(--warn); }
+.cmp td { padding: 7px 0; border-top: 1px solid var(--rule); text-align: right; }
+.cmp td:first-child { text-align: left; color: #cdd3d1; }
+.cmp td + td, .cmp th + th { padding-left: 12px; }
+
+.spec { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; font-size: 13.5px; margin: 0; padding: 12px 0 0; border-top: 1px solid var(--rule); }
+.spec dt { font-family: var(--f-mono); font-size: 11px; letter-spacing: .06em; color: var(--muted); text-transform: uppercase; padding-top: 2px; }
+.spec dd { margin: 0; min-width: 0; }
+
+.stack { display: grid; gap: 8px; }
+.stack .track { display: flex; height: 16px; gap: 2px; }
+.stack .track span { display: block; height: 100%; }
+.stack .k { display: grid; grid-template-columns: 12px 1fr auto; gap: 4px 8px; font-size: 13px; align-items: center; font-variant-numeric: tabular-nums; }
+.stack .k i { width: 10px; height: 10px; display: block; }
+.stack .k b { font-weight: 500; font-family: var(--f-mono); font-size: 12px; }
+
+figure { margin: 0; display: grid; gap: 6px; }
+figure img { width: 100%; display: block; aspect-ratio: 768 / 560; object-fit: cover; filter: saturate(.85); border: 1px solid var(--rule); }
+figcaption { font-size: 12px; color: var(--muted); }
+
+.note { font-size: 13.5px; padding: 10px 12px; background: var(--slab-2); border-left: 3px solid var(--tape); color: var(--paper); }
+.crit { list-style: none; margin: 0; padding: 0; display: grid; counter-reset: c; }
+.crit li { counter-increment: c; display: grid; grid-template-columns: 28px 1fr; gap: 10px; padding: 9px 0; border-top: 1px solid var(--rule); font-size: 14px; }
+.crit li::before { content: counter(c); font-family: var(--f-display); font-size: 24px; font-weight: 700; line-height: 1; color: var(--tape); }
+.groups { display: grid; gap: 0; }
+.groups div { padding: 9px 0; border-top: 1px solid var(--rule); font-size: 14px; display: grid; gap: 2px; }
+.groups b { font-family: var(--f-mono); font-size: 11px; letter-spacing: .06em; color: var(--tape); font-weight: 500; text-transform: uppercase; }
+
+.timeline { list-style: none; margin: 0; padding: 0; display: grid; }
+.timeline li { display: grid; grid-template-columns: 92px 1fr; gap: 14px; padding: 10px 0; border-top: 1px solid var(--rule); font-size: 14px; }
+.timeline time { font-family: var(--f-mono); font-size: 12px; color: var(--tape); padding-top: 2px; font-variant-numeric: tabular-nums; }
+.timeline li span { min-width: 0; }
+.quote { font-family: var(--f-display); font-size: 26px; line-height: 1.12; font-weight: 600; text-transform: uppercase; color: var(--paper); border-left: 3px solid var(--warn); padding-left: 14px; }
+.end { min-height: 90vh; }
+
+@media (max-width: 760px) {
+  #map::after { background: linear-gradient(0deg, rgba(15,19,22,.9) 0%, rgba(15,19,22,.25) 50%, rgba(15,19,22,0) 70%); }
+  .step { align-items: flex-end; padding-block: 50vh 8vh; }
+  .hero { align-items: flex-end; padding-block: 38vh 6vh; }
+  .card { padding: 20px 18px 18px; }
+  .hero .card { padding: 26px 20px 22px; }
+  .tape { margin: -26px -20px 4px; }
+  p.lede { font-size: 16.5px; }
+  .facts strong { font-size: 26px; }
+  .timeline li { grid-template-columns: 78px 1fr; }
+  .legend { bottom: auto; top: calc(40px + env(safe-area-inset-top, 0px)); }
+}
+@media (prefers-reduced-motion: reduce) { .scroll-hint::after { animation: none; } }
+</style>
+
+<div id="map" aria-hidden="true"></div>
+<div id="spot" aria-hidden="true"></div>
+
+<div class="bar">
+  <span>Hồ sơ <b>NQ 96/2026</b> · Hà Nội</span>
+  <span class="ticks" id="ticks"></span>
+</div>
+<nav class="ctrl" aria-label="Điều khiển bản đồ">
+  <button id="zin" type="button" title="Phóng to" aria-label="Phóng to"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+  <button id="zout" type="button" title="Thu nhỏ" aria-label="Thu nhỏ"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
+  <div class="sep"></div>
+  <button id="rl" type="button" title="Xoay trái 45°" aria-label="Xoay trái 45 độ"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.3-5.6"/><path d="M4 4v4h4"/></svg></button>
+  <button id="rr" type="button" title="Xoay phải 45°" aria-label="Xoay phải 45 độ"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v4h-4"/></svg></button>
+  <button id="orbit" type="button" title="Xoay 360° quanh công trình" aria-label="Xoay 360 độ" aria-pressed="false"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="9" ry="4"/><path d="M12 3v18"/><path d="M18 9.5l3 2.5-3.5 1.5"/></svg></button>
+  <div class="sep"></div>
+  <button id="pup" type="button" title="Nghiêng nhiều hơn" aria-label="Nghiêng nhiều hơn"><svg viewBox="0 0 24 24"><path d="M3 18l9-4 9 4"/><path d="M12 14V4M8 8l4-4 4 4"/></svg></button>
+  <button id="pdown" type="button" title="Nhìn từ trên xuống" aria-label="Nhìn từ trên xuống"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16"/><path d="M12 8v8M8 12h8"/></svg></button>
+  <button id="compass" type="button" title="Quay về hướng Bắc" aria-label="Quay về hướng Bắc"><svg viewBox="0 0 24 24"><path d="M12 3l4 9h-8z" fill="#ff5a36" stroke="#ff5a36"/><path d="M12 21l-4-9h8z"/></svg></button>
+  <button id="reset" type="button" title="Về góc nhìn của đoạn đang đọc" aria-label="Về góc nhìn của đoạn đang đọc"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></button>
+</nav>
+<div class="hint" id="hint"><b>Kéo</b> để di chuyển · <b>Chuột phải + kéo</b> để xoay, nghiêng · <b>Ctrl + cuộn</b> để zoom · <b>Bấm</b> vào một tầng, căn hộ để xem chi tiết</div>
+<aside class="info" id="info" hidden aria-live="polite">
+  <button class="ix" type="button" aria-label="Đóng">×</button>
+  <span class="ib"></span>
+  <div class="ih"></div>
+  <p class="it"></p>
+  <dl></dl>
+</aside>
+<div class="ulegend hide" id="unitlegend" aria-hidden="true">
+  <b>Từng căn hộ · ước tính</b>
+  <span><i style="background:#7fb0d0"></i>Trong phép</span>
+  <span><i style="background:#ff5a36"></i>Tầng xây vượt</span>
+  <span><i style="background:#e0245e"></i>Sai công năng, di dời</span>
+  <span><i style="background:#f2a53a"></i>CT6C ngoài quy hoạch</span>
+</div>
+<div class="legend hide" id="legend" aria-hidden="true">
+  <span class="lp"><i></i>Trong quy hoạch</span>
+  <span class="lw"><i></i>Tầng xây vượt</span>
+  <span class="lm"><i></i>Sai công năng, di dời</span>
+</div>
+
+<main class="story" id="story">
+
+  <section class="step hero" data-focus="all" data-view="overview">
+    <div class="card">
+      <div class="tape"></div>
+      <div class="code">ĐÔ THỊ <em>17.11.2026</em></div>
+      <h1>Hà Nội ấn định lộ trình xử lý 12 công trình vi phạm liên quan đến Mường Thanh</h1>
+      <p class="lede">Được cấp phép 6.759 căn hộ, thực tế xây 24.943 căn. Hà Nội đã phê duyệt kế hoạch xử lý 12 công trình, dự án thuộc hệ sinh thái Mường Thanh: di dời, bồi thường, phá dỡ, cải tạo, xong trong năm 2028.</p>
+      <p class="meta">Theo <a href="https://baoxaydung.vn/ha-noi-an-dinh-lo-trinh-xu-ly-12-cong-trinh-vi-pham-lien-quan-den-muong-thanh-19226111720522607.htm" target="_blank" rel="noopener">Báo Xây dựng</a>, số liệu sai phạm tham khảo <a href="https://vnexpress.net/giai-phau-sai-pham-tai-to-hop-chung-cu-cua-muong-thanh-5143404.html" target="_blank" rel="noopener">VnExpress</a> · Bản đồ 3D từ OpenStreetMap</p>
+      <div class="scroll-hint">Cuộn để đi qua từng tòa nhà</div>
+    </div>
+  </section>
+
+  <section class="step" data-focus="all" data-view="overview2">
+    <div class="card">
+      <div class="code">QUY MÔ SAI PHẠM <em>Báo cáo UBND TP, kỳ họp HĐND 28/10/2026</em></div>
+      <h2>Gần bốn căn xây cho mỗi căn được phép</h2>
+      <div class="facts">
+        <div><strong class="b">6.759</strong><span>căn hộ được cấp phép</span></div>
+        <div><strong class="w">24.943</strong><span>căn hộ đã xây thực tế</span></div>
+        <div><strong>3,7×</strong><span>vượt 18.184 căn</span></div>
+      </div>
+      <p>12 dự án nằm ở 5 phường, xã phía nam Hà Nội: Hoàng Liệt, Định Công, Hà Đông, Kiến Hưng và Đại Thanh. Nguyên nhân theo kết luận của thành phố: xây sai quy hoạch, tăng diện tích sàn, chia nhỏ căn hộ.</p>
+      <dl class="spec">
+        <dt>Phá dỡ</dt><dd>Hơn 3.900 căn cao tầng, theo ước tính đại biểu nêu tại kỳ họp; danh sách chính thức chưa công bố</dd>
+        <dt>Giấy tờ</dt><dd>Một phần căn ở VP3, VP5, CT6, CT5 đã có sổ; VP6 và HH1–HH4 chưa có căn nào</dd>
+        <dt>Ngoài danh sách</dt><dd>48 dự án vi phạm của chủ đầu tư khác, gồm 6 dự án của Bộ Công an và 2 của Bộ Quốc phòng, không thuộc Nghị quyết 96</dd>
+      </dl>
+      <p class="meta">Nguồn: <a href="https://dantri.com.vn/thoi-su/ha-noi-chot-co-che-pha-do-hoac-cho-ton-tai-12-du-an-cua-muong-thanh-20261028095817889.htm" target="_blank" rel="noopener">Dân trí</a>, <a href="https://www.rfa.org/vietnamese/trong-nuoc/2026/11/14/muong-thanh-chung-cu-ha-noi-pha-do/" target="_blank" rel="noopener">RFA</a>, <a href="https://www.nguoiduatin.vn/ha-noi-can-canh-12-du-an-muong-thanh-nam-trong-dien-xu-ly-sai-pham-204261107120414888.htm" target="_blank" rel="noopener">Người Đưa Tin</a></p>
+      <p>Kế hoạch mới của UBND thành phố triển khai Nghị quyết 96/2026/NQ-HĐND về cơ chế đặc thù khắc phục vi phạm, kế thừa Kế hoạch 349/KH-UBND về các dự án thuộc hệ sinh thái Tập đoàn Mường Thanh do ông Lê Thanh Thản làm đại diện pháp luật, chủ sở hữu.</p>
+    </div>
+  </section>
+
+  <section class="step chapter" data-focus="all" data-view="linhdam">
+    <div class="card">
+      <div class="code">PHẦN 1 <em>Hồ Linh Đàm · 7 dự án</em></div>
+      <h2>Quanh hồ Linh Đàm</h2>
+      <p>Hơn nửa danh sách nằm quanh một mặt hồ: bốn tòa HH và ba tòa VP ở phường Hoàng Liệt.</p>
+    </div>
+  </section>
+
+  <section class="step" data-focus="hh" data-style="permit" data-legend="1">
+    <div class="card">
+      <div class="code">HH1 · HH2 · HH3 · HH4 <em>Phường Hoàng Liệt</em></div>
+      <h2>Phép 27 tầng, xây 41 tầng</h2>
+      <figure>
+        <img src="hh-linh-dam.webp" alt="Ảnh chụp tổ hợp chung cư HH Linh Đàm với nhiều khối tháp cao tầng" width="768" height="560" loading="lazy">
+        <figcaption>Ảnh trong bài Báo Xây dựng: tổ hợp chung cư HH Linh Đàm (Ảnh: TA). Trên bản đồ là cùng cụm tòa nhà dựng 3D.</figcaption>
+      </figure>
+      <p>Theo các kết luận thanh tra đã công bố, tổ hợp HH Linh Đàm chỉ được xây tối đa <span class="b">27 tầng</span>. Chủ đầu tư nâng các cụm HH1, HH2, HH3 lên <span class="w">41 tầng</span> và HH4 lên <span class="w">36 tầng</span>. Phần màu cam trên mô hình là các tầng vượt.</p>
+      <div class="note">Cùng với Đại Thanh, HH1–HH4 là nơi việc cấp hoặc thu hồi giấy chứng nhận bắt đầu sớm nhất, từ quý I/2027.</div>
+      <p>Theo trả lời của Bộ Xây dựng năm 2019, đoàn thanh tra rời công trường cuối năm 2014 khi chưa thấy vượt tầng; các tầng vượt mọc lên từ giữa năm 2015. Tổ hợp hiện có khoảng 10.000 căn đang ở.</p>
+      <p>Kể cả khi tòa nhà được giữ lại, các căn bố trí sai công năng ở khối đế, tầng kỹ thuật và khu sinh hoạt cộng đồng vẫn phải chuyển đi. Danh sách tầng, căn cụ thể chưa được công bố.</p>
+      <dl class="spec"><dt>Khối tháp</dt><dd>12, mỗi tòa ba khối A, B, C</dd><dt>Tầng vượt</dt><dd>14 tầng ở HH1–HH3, 9 tầng ở HH4</dd><dt>Nguồn</dt><dd><a href="https://afamily.vn/sai-pham-o-hh-linh-dam-nguoi-mua-nha-khong-co-loi-khong-the-ganh-hau-qua-236261104164649903.chn" target="_blank" rel="noopener">Afamily</a>, <a href="https://dantri.com.vn/bat-dong-san/can-ho-nao-o-hh-linh-dam-phai-di-doi-ngay-ca-khi-chung-cu-khong-bi-pha-do-20261028105305964.htm" target="_blank" rel="noopener">Dân trí</a>, <a href="https://cafef.vn/toan-canh-12-du-an-muong-thanh-nam-trong-dien-xu-ly-sai-pham-o-ha-noi-188261106081514025.chn" target="_blank" rel="noopener">CafeF</a></dd></dl>
+    </div>
+  </section>
+
+  <section class="step" data-focus="hh" data-style="permit" data-legend="1" data-zoom="17.45" data-bear="-48" data-pitch="64">
+    <div class="card">
+      <div class="code">HH1 · HH3 <em>Kết luận Thanh tra TP, 8/2016</em></div>
+      <h2>816 căn trên giấy, 2.000 căn mỗi tòa</h2>
+      <p>Với HH1 và HH3, kết luận thanh tra có số căn cụ thể: mỗi tòa được duyệt <span class="b">816 căn</span> nhưng thực tế khoảng <span class="w">2.000 căn</span>. Phóng gần, hai tòa này được tách thành từng căn trên mỗi tầng: xanh là tầng trong giới hạn 27, cam là tầng xây vượt.</p>
+      <div class="facts">
+        <div><strong class="w">8.896</strong><span>căn trong 12 khối HH</span></div>
+        <div><strong class="w">26.688</strong><span>người đang sống</span></div>
+        <div><strong class="b">6.300</strong><span>người theo quy hoạch duyệt</span></div>
+      </div>
+      <p>Dân số thực tế gấp hơn 4 lần quy mô quy hoạch. HH1–HH4 thuộc ô đất CC6; chưa có căn nào được cấp sổ. HH2, HH4 chưa có số căn công bố riêng nên chỉ thể hiện theo tầng.</p>
+      <p class="meta">Mỗi tòa chia đều khoảng 2.000 căn cho 3 khối, tầng 2–41 (ước tính, ~17 căn/tầng). Nguồn: <a href="https://markettimes.vn/9-000-can-ho-hh-linh-dam-ai-duoc-o-lai-ai-co-the-phai-chuyen-sang-khu-do-thi-thanh-ha-130941.html" target="_blank" rel="noopener">Market Times</a>, dẫn kết luận thanh tra toàn diện của Thanh tra TP Hà Nội. Bấm vào từng căn để xem chi tiết.</p>
+    </div>
+  </section>
+
+  <section class="step" data-focus="vp" data-style="permit" data-legend="1" data-zoom="17.15" data-bear="20" data-pitch="58">
+    <div class="card">
+      <div class="code">VP5 · VP6 <em>Phường Hoàng Liệt</em></div>
+      <h2>VP6: 138 căn thành 840 căn</h2>
+      <p>Cách cụm HH vài trăm mét về phía đông, ba tòa VP đứng giữa khu nhà thấp tầng của bán đảo Linh Đàm. Hai tòa VP5 và VP6 có mức vượt lớn nhất danh sách tính theo số căn.</p>
+      <table class="cmp">
+        <thead><tr><th>Tòa</th><th class="b">Tầng duyệt</th><th class="w">Thực tế</th><th class="b">Căn duyệt</th><th class="w">Thực tế</th></tr></thead>
+        <tbody>
+          <tr><td>VP5</td><td class="b">29</td><td class="w">33</td><td class="b">216</td><td class="w">805</td></tr>
+          <tr><td>VP6</td><td class="b">25</td><td class="w">37</td><td class="b">138</td><td class="w">840</td></tr>
+        </tbody>
+      </table>
+      <p>VP6 có số căn gấp hơn 6 lần, vượt 702 căn; VP5 vượt 589 căn. Mô hình tách hai tòa thành từng căn trên mỗi tầng: cam là tầng xây vượt, xanh là tầng trong số tầng được phép. VP6 chưa có căn nào được cấp sổ; một phần căn VP5 đã có sổ.</p>
+      <p class="meta">805 và 840 căn chia đều cho tầng 2 trở lên (ước tính, ~25 và ~23 căn/tầng). VP3 chưa có số liệu công bố nên để màu xám.</p>
+      <p class="meta">Nguồn: <a href="https://znews.vn/12-du-an-sai-pham-cua-tap-doan-muong-thanh-post1693314.html" target="_blank" rel="noopener">Znews</a>, <a href="https://cafef.vn/toan-canh-12-du-an-muong-thanh-nam-trong-dien-xu-ly-sai-pham-o-ha-noi-188261106081514025.chn" target="_blank" rel="noopener">CafeF</a></p>
+    </div>
+  </section>
+
+  <section class="step" data-focus="kv" data-style="permit" data-legend="1" data-zoom="17.35" data-bear="-70" data-pitch="58">
+    <div class="card">
+      <div class="code">CT11 · CT12 <em>Phường Định Công</em></div>
+      <h2>Kim Văn – Kim Lũ: 246 căn ở khối đế</h2>
+      <p>CT11 và cụm ba tháp CT12 (A, B, C) là những khối cao nhất danh sách, khoảng 40–45 tầng. Sai phạm nằm ở chân tòa: <span class="w">tầng 2 đến 4</span> được quy hoạch cho thương mại, dịch vụ, nhà trẻ và sinh hoạt cộng đồng, nhưng bị chuyển thành căn hộ để bán.</p>
+      <p>Rà soát sơ bộ xác định <span class="w">246 căn</span>, rộng 43–74 m², ở tầng 2–4 của bốn tòa phải di dời trong năm 2027; phá dỡ hạng mục vi phạm trong 2027–2028. Từ tầng 4 trở lên, chủ đầu tư bị cho là tự ý thay đổi cơ cấu diện tích căn.</p>
+      <p>Phóng gần, tầng 2–4 của bốn tòa được tách thành 246 căn màu đỏ thẫm. Bấm vào từng căn để xem tầng và tình trạng.</p>
+      <dl class="spec"><dt>Phương án</dt><dd>Bồi thường và hỗ trợ chuyển chỗ ở; nhận căn tương đương ở KĐT Thanh Hà; nhận tiền tự lo chỗ ở; hoặc nhận tiền và đăng ký nhà ở xã hội</dd><dt>Sau di dời</dt><dd>Diện tích ưu tiên trả lại cho sinh hoạt cộng đồng, thương mại, dịch vụ</dd></dl>
+      <p class="meta">Nguồn: <a href="https://znews.vn/ha-noi-du-kien-di-doi-246-can-ho-chung-cu-kim-van-kim-lu-muong-thanh-post1694600.html" target="_blank" rel="noopener">Znews</a>, <a href="https://tienphong.vn/246-can-ho-chung-cu-kim-van-kim-lu-du-kien-di-doi-duoc-boi-thuong-bo-tri-noi-o-moi-the-nao-post1892321.tpo" target="_blank" rel="noopener">Tiền Phong</a>, <a href="https://cafebiz.vn/hien-trang-4-toa-chung-cu-co-246-can-ho-du-kien-di-doi-o-kim-van-kim-lu-176261109100807093.chn" target="_blank" rel="noopener">Cafebiz</a></p>
+    </div>
+  </section>
+
+  <section class="step chapter" data-focus="kh" data-zoom="16.1" data-bear="-10" data-pitch="50">
+    <div class="card">
+      <div class="code">PHẦN 2 <em>Bên sông Nhuệ</em></div>
+      <h2>Giải phẫu CT6 Kiến Hưng</h2>
+      <p>Dự án duy nhất trong 12 dự án mà chủ đầu tư bị truy tố. Phiên tòa sơ thẩm dự kiến mở ngày 18/11.</p>
+    </div>
+  </section>
+
+  <section class="step" data-focus="kh" data-style="plan" data-grow="0" data-legend="1" data-bear="35">
+    <div class="card">
+      <div class="code">QUY HOẠCH 1/500 <em>UBND tỉnh Hà Tây duyệt năm 2008</em></div>
+      <h2>Trên giấy: hai tháp 31 tầng</h2>
+      <p>Bản quy hoạch được duyệt gồm hai tháp 31 tầng trên khối đế 4 tầng và hai tầng hầm. <span class="b">Tháp A</span> là chung cư 231 căn, <span class="b">tháp B</span> là khách sạn 459 phòng.</p>
+      <p>Phía sau là 15 nhà liền kề 3 tầng và một nhà trẻ 3 tầng. Mô hình lúc này chỉ dựng những gì có trong bản vẽ.</p>
+    </div>
+  </section>
+
+  <section class="step" data-focus="kh" data-style="permit" data-grow="1" data-legend="1" data-bear="15">
+    <div class="card">
+      <div class="code">THỰC TẾ <em>Thi công 2010–2012</em></div>
+      <h2>Ba tháp 32 tầng, 1.582 căn</h2>
+      <p>Tổ hợp được xây thành ba tòa CT6A, CT6B, CT6C cao 32 tầng, chung một khối đế 3 tầng và một tầng hầm. Tòa <span class="w">CT6C với 438 căn</span> hoàn toàn không có trong quy hoạch.</p>
+      <table class="cmp">
+        <thead><tr><th>Chỉ tiêu</th><th class="b">Duyệt</th><th class="w">Thực tế</th></tr></thead>
+        <tbody>
+          <tr><td>Tháp cao tầng</td><td class="b">2</td><td class="w">3</td></tr>
+          <tr><td>Số tầng</td><td class="b">31</td><td class="w">32</td></tr>
+          <tr><td>Căn hộ</td><td class="b">231</td><td class="w">1.582</td></tr>
+          <tr><td>Sàn (m²)</td><td class="b">81.976</td><td class="w">147.279</td></tr>
+          <tr><td>Nhà liền kề</td><td class="b">15</td><td class="w">38</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="step" data-focus="kh" data-style="hl" data-hl="CT6B Xa La" data-bear="-20">
+    <div class="card">
+      <div class="code">CT6B</div>
+      <h2>Khách sạn thành 446 căn hộ</h2>
+      <p>Theo quy hoạch, CT6B là khách sạn 459 phòng. Thực tế, toàn bộ tháp trở thành 446 căn hộ.</p>
+      <p>Diện tích xây dựng khối cao tầng tăng 1,12 lần, từ 5.586 m² lên 6.234 m². Tổng diện tích sàn tăng khoảng 1,8 lần, từ 81.976 m² lên 147.278,8 m².</p>
+    </div>
+  </section>
+
+  <section class="step" data-focus="kh" data-style="hl" data-kinds="pod,pent" data-legend="0" data-bear="60" data-pitch="68">
+    <div class="card">
+      <div class="code">KHỐI ĐẾ · TẦNG ÁP MÁI</div>
+      <h2>Tầng 2–3 bị chia thành 126 căn hộ</h2>
+      <p>Khối đế được quy hoạch 4 tầng cho thương mại, phụ trợ khách sạn, khu vui chơi trẻ em và sinh hoạt cộng đồng. Thực tế chỉ có 3 tầng: tầng 1 là sảnh, siêu thị và 56 ki-ốt; <span class="w">tầng 2 và 3 thành 126 căn hộ</span>.</p>
+      <dl class="spec"><dt>CT6A</dt><dd>60 căn</dd><dt>CT6B</dt><dd>37 căn</dd><dt>CT6C</dt><dd>29 căn</dd></dl>
+      <p>Cả ba tòa còn xây vượt <span class="w">một tầng áp mái</span>, nâng chiều cao tối đa từ 112,7 m lên 116,6 m. Tầng trên cùng của CT6A có 24 căn, CT6B và CT6C mỗi tòa 17 căn.</p>
+      <div class="note">126 căn ở tầng 2–3 dự kiến phải di dời để hoàn trả công năng. Các tầng 4 đến 32 được tồn tại có điều kiện.</div>
+    </div>
+  </section>
+
+  <section class="step" data-focus="kh" data-style="permit" data-zoom="17.75" data-bear="28" data-pitch="62">
+    <div class="card">
+      <div class="code">TỪNG CĂN HỘ <em>Phường Kiến Hưng rà soát 1.584 căn</em></div>
+      <h2>Từng tầng, từng căn</h2>
+      <p>Phóng gần, ba tháp được tách thành từng căn hộ theo số liệu rà soát. Mỗi ô là một căn, tô màu theo hướng xử lý dự kiến.</p>
+      <div class="ukey">
+        <div><i style="background:#e0245e"></i><span>Tầng 2–3, di dời hoàn trả công năng</span><b>126</b></div>
+        <div><i style="background:#ff5a36"></i><span>Tầng 32 áp mái xây vượt</span><b>58</b></div>
+        <div><i style="background:#f2a53a"></i><span>CT6C tầng 4–31, ngoài quy hoạch</span><b>392</b></div>
+        <div><i style="background:#7fb0d0"></i><span>CT6A, CT6B tầng 4–31</span><b>1.008</b></div>
+      </div>
+      <p>Các tầng 4 đến 32 được tồn tại có điều kiện. <b>Bấm vào bất kỳ căn nào</b> để xem tầng, số căn và tình trạng; kéo, xoay để nhìn mặt sau.</p>
+      <p class="meta">Vị trí từng căn là sơ đồ minh họa. Số căn mỗi tầng phân bổ từ tổng công bố (tầng 2–3: 60/37/29; tầng 32: 24/17/17; CT6B 446, CT6C 438 căn).</p>
+    </div>
+  </section>
+
+  <section class="step" data-focus="kh" data-style="hl" data-kinds="house" data-zoom="17.7" data-bear="160" data-pitch="58">
+    <div class="card">
+      <div class="code">KHU LIỀN KỀ</div>
+      <h2>15 nhà trên giấy, 38 nhà ngoài đời</h2>
+      <p>Quy hoạch duyệt 15 nhà liền kề 3 tầng và một nhà trẻ trên lô đất hơn 718 m². Thực tế chủ đầu tư xây 38 nhà trên 2.473,9 m². Nhà trẻ bị dồn vào khối chung cư; lô 513 m² dành cho trường mẫu giáo nay là nhà thấp tầng.</p>
+      <p>Khu liền kề còn lấn chỉ giới đường đỏ 47 m². Phường rà soát và dự kiến <span class="w">phá dỡ 10 nhà</span>: 6 nhà trên đất trường mầm non, 4 nhà trên đường nội bộ.</p>
+    </div>
+  </section>
+
+  <section class="step" data-focus="kh" data-style="permit" data-legend="1" data-zoom="16.6" data-bear="-40" data-pitch="55">
+    <div class="card">
+      <div class="code">CÁO TRẠNG <em>VKSND TP Hà Nội</em></div>
+      <h2>519 người mua là bị hại</h2>
+      <p>Toàn dự án có 1.620 căn. Sở TN&amp;MT đã cấp sổ cho 934 căn; 519 căn không thể cấp.</p>
+      <div class="stack" role="img" aria-label="1.620 căn: 934 đã có sổ, 437 căn CT6C, 68 căn đổi công năng, 14 căn thấp tầng, 167 căn còn lại">
+        <div class="track">
+          <span style="flex:934;background:var(--plan)"></span>
+          <span style="flex:437;background:var(--warn)"></span>
+          <span style="flex:68;background:#ff9a7f"></span>
+          <span style="flex:14;background:var(--tape)"></span>
+          <span style="flex:167;background:var(--rule)"></span>
+        </div>
+        <div class="k"><i style="background:var(--plan)"></i><span>Đã cấp sổ</span><b>934</b></div>
+        <div class="k"><i style="background:var(--warn)"></i><span>CT6C, xây ngoài quy hoạch</span><b>437</b></div>
+        <div class="k"><i style="background:#ff9a7f"></i><span>Tầng 2, 3, 4, 32 của CT6A, CT6B đổi công năng</span><b>68</b></div>
+        <div class="k"><i style="background:var(--tape)"></i><span>Nhà thấp tầng sai quy hoạch</span><b>14</b></div>
+      </div>
+      <p>Ông Lê Thanh Thản, Chủ tịch HĐQT kiêm Tổng giám đốc Bemes, bị truy tố tội Lừa dối khách hàng, bị cáo buộc thu lợi bất chính hơn <span class="w">531,8 tỷ đồng</span>. Hợp đồng ông ký cam kết "hồ sơ dự án đã được phê duyệt". Năm cựu cán bộ phường Kiến Hưng và Thanh tra xây dựng Hà Đông bị truy tố tội Thiếu trách nhiệm gây hậu quả nghiêm trọng.</p>
+      <p>Bemes đã mua lại 39 căn ở CT6C. Tháng 4/2026, BIDV cam kết tín dụng 1.000 tỷ đồng để Bemes bồi thường.</p>
+    </div>
+  </section>
+
+  <section class="step chapter" data-focus="all" data-view="west">
+    <div class="card">
+      <div class="code">PHẦN 3 <em>Quốc lộ 70</em></div>
+      <h2>Đại Thanh</h2>
+      <p>Dự án lớn nhất phía nam, nơi gần 4.000 hộ đang sống. CT5 Tân Triều và khu nhà ở Xa La cũng nằm trong danh sách nhưng chưa có số liệu sai phạm công bố riêng, nên bài không đi sâu.</p>
+    </div>
+  </section>
+
+  <section class="step" data-focus="dt" data-style="permit" data-legend="1">
+    <div class="card">
+      <div class="code">CÔNG TRÌNH HỖN HỢP ĐẠI THANH <em>Xã Đại Thanh</em></div>
+      <h2>Gần 4.000 hộ trong sáu tòa vượt tầng</h2>
+      <p>Khu đô thị Đại Thanh rộng khoảng 17 ha bên Quốc lộ 70, gồm sáu tòa CT8A–C và CT10A–C. Quy hoạch duyệt 29 tầng; thực tế các tòa cao <span class="w">31 tầng cộng một tầng áp mái</span> được chia thành căn hộ để bán.</p>
+      <table class="cmp">
+        <thead><tr><th>Hạng mục</th><th class="b">Duyệt</th><th class="w">Thực tế</th></tr></thead>
+        <tbody>
+          <tr><td>Chung cư CT8, CT10</td><td class="b">29 tầng</td><td class="w">31 + áp mái</td></tr>
+          <tr><td>Tầng 2</td><td class="b">Thương mại</td><td class="w">Nhà ở</td></tr>
+          <tr><td>555 nhà thấp tầng</td><td class="b">3,5 tầng</td><td class="w">4,5 tầng</td></tr>
+        </tbody>
+      </table>
+      <p>Gần 4.000 hộ đang sống tại sáu tòa; nhiều người về ở mới biết có sai phạm. Cư dân CT8B và CT10B là những người lo lắng nhất về khả năng bị di dời.</p>
+      <div class="note">Đại Thanh được bắt đầu cấp hoặc thu hồi giấy chứng nhận từ quý I/2027, sớm hơn mốc chung quý IV/2028.</div>
+      <p class="meta">Nguồn: <a href="https://cafef.vn/toan-canh-sai-pham-tai-kdt-dai-thanh-chinh-quyen-dau-dau-2016051309293196.chn" target="_blank" rel="noopener">CafeF</a>, <a href="https://dantri.com.vn/doi-song/ha-noi-ben-trong-chung-cu-4000-ho-chu-nha-ve-o-moi-biet-co-sai-pham-20261111183631119.htm" target="_blank" rel="noopener">Dân trí</a>. Một số báo ghi mức duyệt 27 tầng; trang dùng 29 tầng theo CafeF.</p>
+    </div>
+  </section>
+
+  <section class="step chapter" data-focus="all" data-view="overview2">
+    <div class="card">
+      <div class="code">PHẦN 4 <em>Nghị quyết 96</em></div>
+      <h2>Ở lại hay phá dỡ</h2>
+      <p>Nghị quyết chia công trình vi phạm thành hai nhóm: được tồn tại có điều kiện, hoặc phải phá dỡ.</p>
+    </div>
+  </section>
+
+  <section class="step" data-focus="all" data-view="orbit">
+    <div class="card">
+      <div class="code">5 TIÊU CHÍ <em>Để công trình cao tầng được tồn tại</em></div>
+      <h2>Điều kiện để được ở lại</h2>
+      <ol class="crit">
+        <li><span>Đã hoàn thành xây dựng và đưa vào sử dụng thực tế.</span></li>
+        <li><span>An toàn chịu lực, phòng cháy chữa cháy, cứu nạn cứu hộ, không ảnh hưởng công trình lân cận.</span></li>
+        <li><span>Đủ chỉ tiêu tối thiểu về cấp nước, cấp điện, đỗ xe, trường học, sinh hoạt cộng đồng.</span></li>
+        <li><span>Các khối tháp có ít nhất ba mặt đứng bảo đảm khoảng cách theo quy chuẩn tại thời điểm xây.</span></li>
+        <li><span>Không vi phạm chỉ giới đường đỏ, hành lang hạ tầng kỹ thuật và an toàn giao thông.</span></li>
+      </ol>
+      <p>Nhà thấp tầng được tồn tại nếu hơn 50% diện tích xây dựng nằm ngoài đất quy hoạch hạ tầng. Chủ đầu tư phải nộp phần thu lợi bất hợp pháp, bằng diện tích sàn vượt nhân đơn giá xây dựng khi đưa vào sử dụng, nhân 50%.</p>
+    </div>
+  </section>
+
+  <section class="step" data-focus="all" data-view="all">
+    <div class="card">
+      <div class="code">NGƯỜI MUA NHÀ <em>Được xác định không có lỗi</em></div>
+      <h2>Bốn nhóm quyền lợi</h2>
+      <div class="groups">
+        <div><b>Căn hộ được tồn tại</b><span>Không phải trả chi phí khắc phục thay chủ đầu tư; được cấp giấy chứng nhận khi hai bên hoàn thành nghĩa vụ tài chính.</span></div>
+        <div><b>Phải di dời</b><span>Bồi thường theo giá thị trường do Hội đồng thẩm định giá xác định; tạm cư tại chỗ đến khi có thông báo; bàn giao trong 90 ngày sau khi nhận đủ tiền.</span></div>
+        <div><b>Ưu tiên mua nhà</b><span>Được ưu tiên mua nhà ở các dự án của chủ đầu tư; người đủ điều kiện được mua, thuê mua nhà ở xã hội không qua bốc thăm.</span></div>
+        <div><b>Kinh doanh ở khối đế</b><span>Hộ có thu nhập duy nhất từ phần khối đế bị chuyển công năng được hỗ trợ một lần bằng 6 tháng lương tối thiểu vùng.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="step" data-focus="all" data-view="all">
+    <div class="card">
+      <div class="code">LỘ TRÌNH <em>Quý IV/2026 → 2028</em></div>
+      <h2>Từng mốc cho cư dân</h2>
+      <ol class="timeline">
+        <li><time>Q4/2026</time><span>Phổ biến Nghị quyết; Sở Xây dựng trình danh mục công trình, hạng mục và giải pháp bổ sung hạ tầng.</span></li>
+        <li><time>31/3/2027</time><span>Xử lý xong các khoản tiền đã nộp, tạm nộp.</span></li>
+        <li><time>Q2/2027</time><span>UBND cấp xã phê duyệt phương án di dời, bồi thường, hỗ trợ do chủ đầu tư lập.</span></li>
+        <li><time>Q3/2027</time><span>Ký thỏa thuận, hợp đồng và chi trả bồi thường.</span></li>
+        <li><time>Q4/2027</time><span>Nhận bàn giao căn hộ; di dời, cưỡng chế di dời. Hạn chót 31/12/2027.</span></li>
+        <li><time>31/12/2028</time><span>Hoàn trả khối đế, phá dỡ căn hộ không đủ điều kiện, cải tạo, chỉnh trang, cấp hoặc thu hồi giấy chứng nhận.</span></li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="step" data-focus="all" data-view="orbit2">
+    <div class="card">
+      <div class="code">TRÁCH NHIỆM TÀI CHÍNH</div>
+      <p class="quote">Chủ đầu tư trả chi phí khắc phục, kể cả cưỡng chế và phá dỡ</p>
+      <p>Kinh phí cho nghĩa vụ tài chính, biện pháp khắc phục hậu quả và chi phí phát sinh từ vi phạm đều do chủ đầu tư chi trả. Ngân sách chỉ chi cho hoạt động của cơ quan Nhà nước như rà soát, xác minh, đối thoại.</p>
+      <p>Nếu chủ đầu tư chậm chi trả hoặc chậm tiến độ, thành phố dùng nguồn kinh phí bảo đảm và cưỡng chế tài sản của chủ đầu tư. Sở Xây dựng là đầu mối theo dõi; Công an thành phố rà soát thông tin căn hộ và bảo đảm an ninh khi đối thoại, chi trả, di dời, phá dỡ.</p>
+    </div>
+  </section>
+
+  <section class="step end" data-focus="all" data-view="overview">
+    <div class="card">
+      <div class="code">KẾT</div>
+      <h2>Hai năm để khép lại</h2>
+      <p>Lộ trình từ quý IV/2026 đến hết 2028 đặt mục tiêu xử lý đồng bộ vi phạm ở 12 công trình, gắn trách nhiệm khắc phục của chủ đầu tư với quyền lợi người dân, khôi phục công năng công cộng và bổ sung hạ tầng.</p>
+      <p class="meta">Nội dung tóm lược từ “Hà Nội ấn định lộ trình xử lý 12 công trình vi phạm liên quan đến Mường Thanh”, <a href="https://baoxaydung.vn/ha-noi-an-dinh-lo-trinh-xu-ly-12-cong-trinh-vi-pham-lien-quan-den-muong-thanh-19226111720522607.htm" target="_blank" rel="noopener">Báo Xây dựng</a>, 17/11/2026 (ảnh: TA); số liệu CT6, HH Linh Đàm và Nghị quyết 96 theo “Giải phẫu sai phạm tại tổ hợp chung cư của Mường Thanh”, <a href="https://vnexpress.net/giai-phau-sai-pham-tai-to-hop-chung-cu-cua-muong-thanh-5143404.html" target="_blank" rel="noopener">VnExpress</a>, 17/11/2026. Số liệu VP, Kim Văn – Kim Lũ, Đại Thanh, HH theo Znews, CafeF, Tiền Phong, Cafebiz, Dân trí, Afamily (liên kết ở từng đoạn).<br>Bản đồ, vị trí tòa nhà: © OpenStreetMap contributors (ODbL). Mô hình là minh họa: chiều cao tính từ số tầng, phần "trong quy hoạch" vẽ theo số tầng được duyệt; với CT6, mô hình chưa thể hiện tầng hầm và vị trí từng nhà liền kề trong quy hoạch.</p>
+    </div>
+  </section>
+</main>
+
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script>
+(function () {
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const narrow = () => innerWidth <= 760;
+  const C = { warn: '#ff5a36', dim: '#3e2823', plan: '#7fb0d0', concrete: '#7d8890', warn2: '#ff9a7f' };
+  const LABELS = { hh: 'HH1–HH4 LINH ĐÀM', vp: 'VP3 · VP5 · VP6', kv: 'CT11 · CT12 KIM VĂN', kh: 'CT6 KIẾN HƯNG', tt: 'CT5 TÂN TRIỀU', xl: 'XA LA', dt: 'ĐẠI THANH' };
+  const ORDER = ['hh', 'vp', 'kv', 'kh', 'dt']; // CT5 Tân Triều, Xa La: chưa có số liệu, chỉ hiện trên bản đồ
+  const CAM = { hh: [16.55, -28], vp: [16.4, 35], kv: [16.6, -55], kh: [16.9, 20], tt: [16.9, -15], xl: [16.8, 40], dt: [16.5, -35] };
+
+  const ticks = document.getElementById('ticks');
+  ORDER.forEach(() => ticks.appendChild(document.createElement('span')));
+  const legend = document.getElementById('legend');
+
+  const map = new maplibregl.Map({
+    container: 'map',
+    style: { version: 8, sources: {}, light: { anchor: 'viewport', position: [1.25, 200, 48], color: '#ffffff', intensity: 0.32 }, // sáng theo camera: xoay tới mặt nào cũng rõ
+      layers: [{ id: 'bg', type: 'background', paint: { 'background-color': '#12171a' } }] },
+    center: [105.811, 20.966], zoom: 13.6, pitch: 50, bearing: -20,
+    interactive: true, attributionControl: false, fadeDuration: 0, maxPitch: 80, minZoom: 12, maxZoom: 19,
+    scrollZoom: false, boxZoom: false, keyboard: true, doubleClickZoom: true,
+    dragRotate: true, pitchWithRotate: true, touchPitch: true, touchZoomRotate: true,
+    // điện thoại: một ngón để cuộn bài, hai ngón để zoom, xoay, nghiêng bản đồ
+    dragPan: !matchMedia('(pointer: coarse)').matches
+  });
+  map.touchZoomRotate.enableRotation();
+
+  let towerC = {};
+  let centers = {}, bounds = null, linhdam = null, west = null, markers = {}, subs = [];
+
+  const short = (n) => n.replace(' Xa La', '').replace(' Linh Đàm', '').replace('Chung cư ', '').replace('Mường Thanh Grand', 'Mường Thanh');
+  const CT6H = 116.6, CT6FH = CT6H / 32;
+  const PERMIT = { VP5: [29, 33], VP6: [25, 37] }; // [tầng được phép, tầng thực tế]
+  // Số căn mỗi tầng ở CT6, phân bổ từ số liệu công bố: tầng 2–3 (60/37/29), tầng 32 (24/17/17),
+  // tổng mỗi tòa (CT6B 446, CT6C 438, CT6A phần còn lại của 1.582). Tầng 4–31 chia đều.
+  const CT6U = { CT6A: { pod: [30, 30], body: 22, pent: 24 }, CT6B: { pod: [19, 18], body: 14, pent: 17 }, CT6C: { pod: [15, 14], body: 14, pent: 17 } };
+  function ct6Kind(fl) { return fl === 1 ? 'g1' : fl <= 3 ? 'pod' : fl === 32 ? 'pent' : 'body'; }
+  function ct6Units(tw, fl) { const u = CT6U[tw], k = ct6Kind(fl); return k === 'g1' ? 0 : k === 'pod' ? u.pod[fl - 2] : u[k]; }
+
+  // Cắt mỗi khối nhà thành từng sàn tầng; mỗi sàn mang trạng thái quy hoạch của nó.
+  function segments(targets) {
+    const out = [];
+    const GAP = 0.28;
+    const push = (f, fl, nf, fh, k, o, gr, extra) => out.push({ type: 'Feature', geometry: f.geometry,
+      properties: Object.assign({ g: f.properties.g, n: f.properties.n, tw: short(f.properties.n), fl, nf,
+        b: +(fl === 1 ? 0 : (fl - 1) * fh + GAP).toFixed(2), t: +(fl * fh - GAP).toFixed(2), k, o, gr: gr || '', ct6: 0 }, extra || {}) });
+    targets.features.forEach(f => {
+      const { g, n, h } = f.properties;
+      if (g === 'kh' && /^CT6/.test(n)) {
+        const tw = short(n), extra = tw === 'CT6C';
+        for (let fl = 1; fl <= 32; fl++) {
+          const k = ct6Kind(fl);
+          push(f, fl, 32, CT6FH, k, extra || k === 'pent' ? 1 : 0, extra ? 'whole' : (k === 'pent' ? 'top' : ''), { ct6: 1, u: ct6Units(tw, fl) });
+        }
+      } else if (g === 'kh') {
+        out.push({ type: 'Feature', geometry: f.geometry, properties: { g, n: 'Nhà liền kề CT6', tw: 'Liền kề', fl: 1, nf: 3, b: 0, t: 10, k: 'house', o: 0, gr: '', ct6: 0 } });
+      } else if (g === 'hh') {
+        const nf = /^HH4/.test(n) ? 36 : 41;
+        for (let fl = 1; fl <= nf; fl++) push(f, fl, nf, 3.3, fl > 27 ? 'over' : 'in', fl > 27 ? 1 : 0, '');
+      } else if (g === 'vp' && PERMIT[short(n)]) {
+        // VP5: phép 29, xây 33; VP6: phép 25, xây 37
+        const [pf, nf] = PERMIT[short(n)];
+        for (let fl = 1; fl <= nf; fl++) push(f, fl, nf, 3.3, fl > pf ? 'over' : 'in', fl > pf ? 1 : 0, '', { pf });
+      } else if (g === 'kv') {
+        // tầng 2–4 quy hoạch thương mại, dịch vụ, nhà trẻ, sinh hoạt cộng đồng → bị chuyển thành căn hộ
+        const nf = Math.max(1, Math.round(h / 3.3));
+        for (let fl = 1; fl <= nf; fl++) push(f, fl, nf, h / nf, fl >= 2 && fl <= 4 ? 'pod' : 'body', fl >= 2 && fl <= 4 ? 1 : 0, '');
+      } else if (g === 'dt') {
+        // quy hoạch 29 tầng; thực tế 31 tầng + tầng áp mái chia căn hộ; tầng 2 thương mại → nhà ở
+        const nf = 32, fh = h / nf;
+        for (let fl = 1; fl <= nf; fl++) {
+          const k = fl === 2 ? 'pod' : fl === 32 ? 'pent' : fl > 29 ? 'over' : 'body';
+          push(f, fl, nf, fh, k, k === 'body' ? 0 : 1, '', { pf: 29 });
+        }
+      } else {
+        // chưa có số liệu sai phạm theo tầng: tô trung tính
+        const nf = Math.max(1, Math.round(h / 3.3));
+        for (let fl = 1; fl <= nf; fl++) push(f, fl, nf, h / nf, 'nodata', 0, '');
+      }
+    });
+    out.forEach(s => { const p = s.properties; if (p.u === undefined) p.u = unitCount(p); p.hu = p.u > 0 ? 1 : 0; });
+    return { type: 'FeatureCollection', features: out };
+  }
+
+  // Số căn trên mỗi tầng, chỉ cho những tòa có số căn công bố; chia đều theo tầng (ước tính).
+  const spread = (total, n, i) => Math.floor(total / n) + (i < total % n ? 1 : 0);
+  function unitCount(p) {
+    const { g, tw, fl } = p;
+    if (g === 'hh' && /^HH[13]/.test(tw) && fl >= 2) {
+      // HH1, HH3: mỗi tòa (3 khối A, B, C) khoảng 2.000 căn, tầng 2–41
+      const bi = 'ABC'.indexOf(tw.slice(-1));
+      return bi < 0 ? 0 : spread(2000, 120, bi * 40 + fl - 2);
+    }
+    if (g === 'vp' && tw === 'VP5' && fl >= 2) return spread(805, 32, fl - 2);
+    if (g === 'vp' && tw === 'VP6' && fl >= 2) return spread(840, 36, fl - 2);
+    if (g === 'kv' && fl >= 2 && fl <= 4) {
+      const ti = ['CT11', 'CT12A', 'CT12B', 'CT12C'].indexOf(tw);
+      return ti < 0 ? 0 : spread(246, 12, ti * 3 + fl - 2);
+    }
+    return 0;
+  }
+  function unitStatus(p) {
+    if (p.ct6 == 1) return p.k === 'pod' ? 'move' : p.k === 'pent' ? 'pent' : p.tw === 'CT6C' ? 'extra' : 'ok';
+    if (p.g === 'kv') return 'move';
+    return p.o ? 'over' : 'in';
+  }
+
+  // Dựng từng căn hộ trên mỗi sàn có số căn: lấy hình chữ nhật bao nhỏ nhất của mặt bằng tháp,
+  // chia hai dãy căn hai bên hành lang giữa. Đây là sơ đồ minh họa, không phải mặt bằng thật.
+  function units(seg) {
+    const out = [], rects = {}, wins = [];
+    seg.features.filter(s => s.properties.u > 0).forEach(s => {
+      const P = s.properties;
+      if (!rects[P.n]) rects[P.n] = rectOf(s.geometry.coordinates[0]);
+      const R = rects[P.n], n = P.u, st = unitStatus(P);
+      const rows = [Math.ceil(n / 2), Math.floor(n / 2)];
+      let no = 0;
+      rows.forEach((cols, r) => {
+        const ya = r === 0 ? R.y0 + 0.25 : R.y0 + R.W / 2 + R.cor / 2, yb = r === 0 ? R.y0 + R.W / 2 - R.cor / 2 : R.y1 - 0.25;
+        for (let j = 0; j < cols; j++) {
+          no++;
+          const xa = R.x0 + R.L * j / cols + 0.22, xb = R.x0 + R.L * (j + 1) / cols - 0.22;
+          out.push({ type: 'Feature', geometry: { type: 'Polygon', coordinates: [[R.toLL(xa, ya), R.toLL(xb, ya), R.toLL(xb, yb), R.toLL(xa, yb), R.toLL(xa, ya)]] },
+            properties: { g: P.g, n: P.n, tw: P.tw, fl: P.fl, nf: P.nf, no, u: n, st, k: P.k, o: P.o, gr: P.gr, pf: P.pf || 0, ct6: P.ct6, b: P.b, t: P.t } });
+          // ô cửa sổ: tấm kính mỏng nhô ra mặt ngoài của căn, giữa chiều cao tầng
+          const w = xb - xa, fh = P.t - P.b;
+          const wx0 = xa + w * 0.18, wx1 = xb - w * 0.18;
+          const wy0 = r === 0 ? ya - 0.32 : yb - 0.06, wy1 = r === 0 ? ya + 0.06 : yb + 0.32;
+          wins.push({ type: 'Feature', geometry: { type: 'Polygon', coordinates: [[R.toLL(wx0, wy0), R.toLL(wx1, wy0), R.toLL(wx1, wy1), R.toLL(wx0, wy1), R.toLL(wx0, wy0)]] },
+            properties: { g: P.g, gr: P.gr, st, b: +(P.b + fh * 0.28).toFixed(2), t: +(P.t - fh * 0.18).toFixed(2) } });
+          // căn ở hai đầu dãy có thêm cửa ở mặt hồi
+          if (j === 0 || j === cols - 1) {
+            const ex0 = j === 0 ? xa - 0.32 : xb - 0.06, ex1 = j === 0 ? xa + 0.06 : xb + 0.32;
+            const ey0 = ya + (yb - ya) * 0.25, ey1 = yb - (yb - ya) * 0.25;
+            wins.push({ type: 'Feature', geometry: { type: 'Polygon', coordinates: [[R.toLL(ex0, ey0), R.toLL(ex1, ey0), R.toLL(ex1, ey1), R.toLL(ex0, ey1), R.toLL(ex0, ey0)]] },
+              properties: { g: P.g, gr: P.gr, st, b: +(P.b + fh * 0.28).toFixed(2), t: +(P.t - fh * 0.18).toFixed(2) } });
+          }
+        }
+      });
+    });
+    winFC = { type: 'FeatureCollection', features: wins };
+    return { type: 'FeatureCollection', features: out };
+  }
+  let winFC = null;
+  function rectOf(ring) {
+    {
+      const lat0 = ring[0][1], lon0 = ring[0][0], kx = Math.cos(lat0 * Math.PI / 180) * 111320, ky = 110540;
+      const pts = ring.map(c => [(c[0] - lon0) * kx, (c[1] - lat0) * ky]);
+      const hull = convexHull(pts);
+      let best = null;
+      for (let i = 0; i < hull.length; i++) {
+        const a = hull[i], b = hull[(i + 1) % hull.length];
+        const len = Math.hypot(b[0] - a[0], b[1] - a[1]); if (!len) continue;
+        const ux = [(b[0] - a[0]) / len, (b[1] - a[1]) / len], uy = [-ux[1], ux[0]];
+        let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+        hull.forEach(p => { const x = p[0] * ux[0] + p[1] * ux[1], y = p[0] * uy[0] + p[1] * uy[1]; x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); });
+        const area = (x1 - x0) * (y1 - y0);
+        if (!best || area < best.area) best = { area, ux, uy, x0, x1, y0, y1 };
+      }
+      if (best.x1 - best.x0 < best.y1 - best.y0) best = { area: best.area, ux: best.uy, uy: [-best.ux[0], -best.ux[1]], x0: best.y0, x1: best.y1, y0: -best.x1, y1: -best.x0 };
+      const toLL = (x, y) => { const px = x * best.ux[0] + y * best.uy[0], py = x * best.ux[1] + y * best.uy[1]; return [+(lon0 + px / kx).toFixed(7), +(lat0 + py / ky).toFixed(7)]; };
+      const L = best.x1 - best.x0, W = best.y1 - best.y0, cor = Math.min(1.8, W * 0.08);
+      return { toLL, L, W, cor, x0: best.x0, y0: best.y0, y1: best.y1 };
+    }
+  }
+  function convexHull(p) {
+    const pts = p.slice().sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    const cr = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+    const lo = [], up = [];
+    pts.forEach(q => { while (lo.length >= 2 && cr(lo[lo.length - 2], lo[lo.length - 1], q) <= 0) lo.pop(); lo.push(q); });
+    pts.slice().reverse().forEach(q => { while (up.length >= 2 && cr(up[up.length - 2], up[up.length - 1], q) <= 0) up.pop(); up.push(q); });
+    return lo.slice(0, -1).concat(up.slice(0, -1));
+  }
+
+  function centroid(features) {
+    let x = 0, y = 0, n = 0;
+    features.forEach(f => f.geometry.coordinates[0].forEach(c => { x += c[0]; y += c[1]; n++; }));
+    return [x / n, y / n];
+  }
+  function bbox(features) {
+    const b = new maplibregl.LngLatBounds();
+    features.forEach(f => f.geometry.coordinates[0].forEach(c => b.extend(c)));
+    return b;
+  }
+
+  // Lề chừa cho thẻ chữ. Tâm bản đồ (điểm mọi phép xoay quay quanh) luôn đặt đúng vào công trình,
+  // còn lề đẩy điểm tâm đó sang vùng trống bên phải (hoặc phía trên trên điện thoại).
+  const viewPad = () => narrow() ? { top: 0, bottom: Math.round(innerHeight * 0.42), left: 0, right: 0 }
+                                 : { top: 0, bottom: 0, left: Math.round(Math.min(480, innerWidth * 0.4)), right: 0 };
+  let pivot = null;
+  function cam(d) {
+    const pad = narrow() ? { top: 60, bottom: innerHeight * 0.5, left: 30, right: 30 } : { top: 80, bottom: 80, left: Math.min(520, innerWidth * 0.42), right: 60 };
+    const f = d.focus;
+    if (f !== 'all') {
+      return { center: centers[f], zoom: (+d.zoom || CAM[f][0]) - (narrow() ? 0.5 : 0), pitch: +d.pitch || 62, bearing: d.bear !== undefined ? +d.bear : CAM[f][1], padding: viewPad() };
+    }
+    const fit = (b, extra) => {
+      const c = map.cameraForBounds(b, { padding: pad }) || { zoom: 13.5 };
+      return { center: b.getCenter(), zoom: c.zoom + (extra || 0), padding: viewPad() };
+    };
+    const v = d.view;
+    if (v === 'linhdam') return { ...fit(linhdam, -0.1), pitch: 60, bearing: 30 };
+    if (v === 'west') return { ...fit(west, -0.1), pitch: 58, bearing: -30 };
+    if (v === 'overview2') return { ...fit(bounds, 0.15), pitch: 58, bearing: 18 };
+    if (v === 'orbit') return { ...fit(bounds, 0.1), pitch: 66, bearing: 60 };
+    if (v === 'orbit2') return { ...fit(bounds, 0.1), pitch: 64, bearing: -60 };
+    if (v === 'all') return { ...fit(bounds), pitch: 45, bearing: -8 };
+    return { ...fit(bounds), pitch: 52, bearing: -20 };
+  }
+
+  // grow: 0 = chỉ dựng phần trong bản vẽ; 1 = dựng cả phần xây thêm
+  let grow = 1, growAnim = null;
+  function heightExpr(S) {
+    return {
+      h: ['case', ['==', ['get', 'gr'], 'whole'], ['*', ['get', 't'], S], ['==', ['get', 'gr'], 'top'], ['+', ['get', 'b'], ['*', ['-', ['get', 't'], ['get', 'b']], S]], ['get', 't']],
+      b: ['case', ['==', ['get', 'gr'], 'whole'], ['*', ['get', 'b'], S], ['get', 'b']]
+    };
+  }
+  function setGrow(S) {
+    const e = heightExpr(S);
+    ['seg', 'units', 'wins'].forEach(id => {
+      map.setPaintProperty(id, 'fill-extrusion-height', e.h);
+      map.setPaintProperty(id, 'fill-extrusion-base', e.b);
+    });
+  }
+  function animateGrow(to) {
+    cancelAnimationFrame(growAnim);
+    const from = grow, t0 = performance.now(), dur = reduce ? 0 : 1600;
+    const step = (t) => {
+      const k = dur ? Math.min(1, (t - t0) / dur) : 1;
+      grow = from + (to - from) * (1 - Math.pow(1 - k, 3));
+      setGrow(grow);
+      if (k < 1) growAnim = requestAnimationFrame(step);
+    };
+    growAnim = requestAnimationFrame(step);
+  }
+
+  function colorExpr(d) {
+    const f = d.focus, style = d.style || 'plain';
+    const inFocus = f === 'all' ? true : ['==', ['get', 'g'], f];
+    let focusColor;
+    if (style === 'permit' || style === 'plan') {
+      focusColor = ['case', ['==', ['get', 'o'], 1], ['match', ['get', 'k'], 'pod', UNIT_COL.move, C.warn], ['==', ['get', 'k'], 'nodata'], C.concrete, C.plan];
+    } else if (style === 'hl') {
+      const names = (d.hl || '').split('|').filter(Boolean), kinds = (d.kinds || '').split(',').filter(Boolean);
+      const conds = [];
+      if (names.length) conds.push(['in', ['get', 'n'], ['literal', names]]);
+      if (kinds.length) conds.push(['in', ['get', 'k'], ['literal', kinds]]);
+      focusColor = ['case', ['any', ...conds], C.warn, C.concrete];
+    } else {
+      focusColor = C.warn;
+    }
+    return withHover(f === 'all' ? focusColor : ['case', inFocus, focusColor, C.dim]);
+  }
+  const withHover = (e) => ['case', ['boolean', ['feature-state', 'sel'], false], '#ffffff', ['boolean', ['feature-state', 'hover'], false], '#ffe2d8', e];
+  // màu căn hộ: xanh = trong phép; cam = tầng xây vượt; đỏ thẫm = di dời / sai công năng; vàng = tòa ngoài quy hoạch
+  const UNIT_COL = { move: '#e0245e', pent: '#ff5a36', over: '#ff5a36', extra: '#f2a53a', ok: '#7fb0d0', in: '#7fb0d0' };
+  function unitColor(d) {
+    const base = ['match', ['get', 'st'], 'move', UNIT_COL.move, 'pent', UNIT_COL.pent, 'over', UNIT_COL.over, 'extra', UNIT_COL.extra, UNIT_COL.ok];
+    return withHover(d.focus === 'all' ? base : ['case', ['==', ['get', 'g'], d.focus], base, C.dim]);
+  }
+
+  // Phóng gần CT6 (≥ DETAIL) thì thay sàn tầng bằng từng căn hộ.
+  const DETAIL = matchMedia('(max-width: 760px)').matches ? 16.6 : 17.1; // điện thoại: camera lùi 0.5 nên hạ ngưỡng
+  let detailOn = null;
+  function updateDetail() {
+    const on = map.getZoom() >= DETAIL;
+    if (on === detailOn) return;
+    detailOn = on;
+    map.setLayoutProperty('units', 'visibility', on ? 'visible' : 'none');
+    map.setLayoutProperty('wins', 'visibility', on ? 'visible' : 'none');
+    unitLegend.classList.toggle('hide', !on);
+    map.setFilter('seg', on ? ['==', ['get', 'hu'], 0] : null);
+  }
+
+  function apply(d) {
+    const f = d.focus;
+    map.setPaintProperty('seg', 'fill-extrusion-color', colorExpr(d));
+    map.setPaintProperty('units', 'fill-extrusion-color', unitColor(d));
+    // kính sáng ở công trình đang xem, tối đi ở công trình khác
+    map.setPaintProperty('wins', 'fill-extrusion-color', d.focus === 'all' ? '#eaf6ff' : ['case', ['==', ['get', 'g'], d.focus], '#eaf6ff', '#3a2c28']);
+    map.setPaintProperty('seg-line', 'line-color', f === 'all' ? '#ffb59f' : ['case', ['==', ['get', 'g'], f], '#ffd2c4', 'rgba(0,0,0,0)']);
+    // làm tối bối cảnh để công trình đang nói tới nổi lên
+    const solo = f !== 'all';
+    map.setPaintProperty('bld', 'fill-extrusion-color', solo ? ['interpolate', ['linear'], ['get', 'h'], 0, '#1b2125', 120, '#2c353b'] : ['interpolate', ['linear'], ['get', 'h'], 0, '#2a3238', 40, '#3a454c', 120, '#56646d']);
+    map.setPaintProperty('bld', 'fill-extrusion-opacity', solo ? 0.55 : 0.75);
+    ['road-m', 'road-t', 'road-p', 'road-s'].forEach(id => map.setPaintProperty(id, 'line-opacity', solo ? 0.55 : 1));
+    map.setFilter('glow', ['==', ['get', 'g'], solo ? f : '__none__']);
+    focusKey = solo ? f : null;
+    spot.classList.toggle('on', solo);
+    if (solo) map.getSource('pulse').setData({ type: 'Feature', geometry: { type: 'Point', coordinates: centers[f] }, properties: {} });
+    const g = d.grow === undefined ? 1 : +d.grow;
+    if (g !== grow) animateGrow(g);
+    legend.classList.toggle('hide', d.legend !== '1');
+    ORDER.forEach((k, i) => {
+      const el = markers[k];
+      el.classList.toggle('on', k === f || f === 'all');
+      el.classList.toggle('focus', k === f);
+      el.classList.toggle('dim', f !== 'all' && k !== f);
+      el.parentElement && (el.style.zIndex = k === f ? 5 : 1);
+      ticks.children[i].className = k === f ? 'on' : (f !== 'all' && i < ORDER.indexOf(f) ? 'past' : '');
+    });
+    ['tt', 'xl'].forEach(k => markers[k] && markers[k].classList.toggle('dim', f !== 'all'));
+    subs.forEach(s => s.el.classList.toggle('hide', f !== 'kh' || (d.style === 'plan' && /CT6C/.test(s.name))));
+  }
+
+  // vòng sáng lan trên mặt đất + đèn rọi theo vị trí màn hình của công trình
+  const spot = document.getElementById('spot');
+  let focusKey = null;
+  function placeSpot() {
+    if (!focusKey) return;
+    const p = map.project(pivot || centers[focusKey]);
+    spot.style.setProperty('--sx', p.x + 'px');
+    spot.style.setProperty('--sy', (p.y - (narrow() ? 70 : 130)) + 'px');
+  }
+  function pulseLoop(t) {
+    if (focusKey && map.getLayer('pulse')) {
+      const k = reduce ? 0.5 : (t % 2200) / 2200;
+      map.setPaintProperty('pulse', 'circle-radius', 30 + k * (narrow() ? 110 : 190));
+      map.setPaintProperty('pulse', 'circle-stroke-opacity', 0.9 * (1 - k));
+      map.setPaintProperty('glow', 'line-opacity', reduce ? 0.7 : 0.45 + 0.35 * Math.sin(t / 380));
+    }
+    if (map.getLayer('pulse')) map.setLayoutProperty('pulse', 'visibility', focusKey ? 'visible' : 'none');
+    requestAnimationFrame(pulseLoop);
+  }
+
+  let spin = null;
+  function go(d) {
+    const c = cam(d);
+    pivot = c.center;
+    lastData = d; userMoved = false;
+    if (selected) { setState(selected, 'sel', false); selected = null; }
+    info.hidden = true;
+    cancelAnimationFrame(spin);
+    if (reduce) map.jumpTo(c);
+    else { map.flyTo({ ...c, duration: 2400, curve: 1.3, essential: true }); map.once('moveend', drift); }
+    apply(d);
+  }
+  // speed: độ/ms. Trôi chậm khi đọc; nút 360° quay một vòng trong 24 giây.
+  let speed = 0.0016, orbitOn = false, lastData = { focus: 'all', view: 'overview' }, userMoved = false;
+  function drift() {
+    cancelAnimationFrame(spin);
+    if (userMoved && !orbitOn) return;
+    let last = performance.now();
+    const tick = (t) => { const dt = Math.min(64, t - last); last = t; if (!map.isMoving() || orbitOn) map.setBearing(map.getBearing() + dt * speed); spin = requestAnimationFrame(tick); };
+    spin = requestAnimationFrame(tick);
+  }
+  const orbitBtn = document.getElementById('orbit');
+  function setOrbit(on) {
+    orbitOn = on; orbitBtn.setAttribute('aria-pressed', on);
+    speed = on ? 360 / 24000 : 0.0016;
+    if (on) {
+      userMoved = false; cancelAnimationFrame(spin);
+      // đưa tâm xoay về công trình đang chọn rồi quay quanh nó
+      map.easeTo({ center: pivot || cam(lastData).center, padding: viewPad(), duration: 700 });
+      map.once('moveend', () => orbitOn && drift());
+    } else if (userMoved) cancelAnimationFrame(spin);
+  }
+  // người dùng tự điều khiển: dừng trôi tự động cho tới đoạn kế tiếp
+  ['dragstart', 'rotatestart', 'pitchstart', 'zoomstart'].forEach(ev => map.on(ev, e => {
+    if (!e.originalEvent) return;
+    userMoved = true; cancelAnimationFrame(spin); if (orbitOn) setOrbit(false);
+  }));
+  const ease = (o) => { userMoved = true; cancelAnimationFrame(spin); map.easeTo({ ...o, duration: 500 }); };
+  document.getElementById('zin').onclick = () => ease({ zoom: map.getZoom() + 0.7 });
+  document.getElementById('zout').onclick = () => ease({ zoom: map.getZoom() - 0.7 });
+  // xoay quanh công trình đang chọn: đưa nó về tâm rồi đổi hướng
+  const rotateBy = (deg) => ease({ bearing: map.getBearing() + deg, center: pivot || map.getCenter(), padding: viewPad() });
+  document.getElementById('rl').onclick = () => rotateBy(-45);
+  document.getElementById('rr').onclick = () => rotateBy(45);
+  document.getElementById('pup').onclick = () => ease({ pitch: Math.min(80, map.getPitch() + 15) });
+  document.getElementById('pdown').onclick = () => ease({ pitch: 0 });
+  document.getElementById('compass').onclick = () => ease({ bearing: 0 });
+  document.getElementById('reset').onclick = () => { setOrbit(false); userMoved = false; go(lastData); };
+  orbitBtn.onclick = () => setOrbit(!orbitOn);
+  const compassIcon = document.querySelector('#compass svg');
+  map.on('rotate', () => { compassIcon.style.transform = 'rotate(' + (-map.getBearing()) + 'deg)'; });
+  // Ctrl/⌘ + con lăn để zoom, con lăn thường vẫn cuộn bài
+  document.getElementById('map').addEventListener('wheel', (e) => {
+    if (!(e.ctrlKey || e.metaKey)) return;
+    e.preventDefault();
+    userMoved = true; cancelAnimationFrame(spin);
+    const p = map.unproject([e.clientX, e.clientY]);
+    map.easeTo({ zoom: map.getZoom() - e.deltaY * 0.004, around: p, duration: 120 });
+  }, { passive: false });
+
+  // ---- rê chuột / bấm vào tầng, căn hộ ----
+  const info = document.getElementById('info');
+  const unitLegend = document.getElementById('unitlegend');
+  const ST = {
+    move: ['Di dời', 'Thuộc 126 căn ở tầng 2–3 của khối đế. Theo quy hoạch, khối đế dành cho thương mại, khu vui chơi trẻ em và sinh hoạt cộng đồng, nên các căn này dự kiến di dời để hoàn trả công năng.'],
+    pent: ['Tầng vượt', 'Tầng 32 là tầng áp mái xây vượt quy hoạch 31 tầng, nâng chiều cao từ 112,7 m lên 116,6 m. Thuộc diện tồn tại có điều kiện.'],
+    extra: ['Ngoài quy hoạch', 'Tòa CT6C với 438 căn không có trong quy hoạch được duyệt; 437 căn chưa thể cấp sổ. Tầng 4–32 thuộc diện tồn tại có điều kiện.'],
+    ok: ['Trong quy hoạch', 'Nằm trong phần tháp được duyệt. Tầng 4–32 thuộc diện tồn tại có điều kiện.']
+  };
+  const pad2 = (x) => String(x).padStart(2, '0');
+  function describe(p) {
+    if (p.st && p.ct6 != 1) {
+      const head = `${p.tw} · Tầng ${p.fl} · Căn ${p.fl}${pad2(p.no)}`;
+      const rows = [['Tầng', `${p.fl} / ${p.nf}`], ['Căn trên tầng', `${p.u} (ước tính)`], ['Cao độ sàn', `${(+p.b).toFixed(1)} m`]];
+      if (p.g === 'kv') return { title: head, badge: 'Di dời', col: UNIT_COL.move, rows,
+        text: 'Tầng 2–4 được quy hoạch cho thương mại, dịch vụ, nhà trẻ, sinh hoạt cộng đồng nhưng bị chuyển thành căn hộ. Căn này thuộc nhóm 246 căn (43–74 m²) ở tầng 2–4 của bốn tòa dự kiến di dời trong năm 2027.' };
+      if (p.g === 'hh') return { title: head, badge: p.o ? 'Tầng vượt' : 'Trong 27 tầng', col: p.o ? UNIT_COL.over : UNIT_COL.in, rows,
+        text: `Mỗi tòa ${p.tw.slice(0, 3)} được duyệt 816 căn nhưng thực tế khoảng 2.000 căn (Thanh tra TP, 8/2016). ` + (p.o ? `Tầng ${p.fl} thuộc phần nâng từ 27 lên ${p.nf} tầng.` : `Tầng ${p.fl} nằm trong giới hạn 27 tầng, nhưng số căn mỗi tầng đã bị chia nhỏ hơn thiết kế.`) };
+      if (p.g === 'vp') {
+        const facts = { VP5: 'VP5 được duyệt 29 tầng, 216 căn; thực tế 33 tầng, 805 căn.', VP6: 'VP6 được duyệt 25 tầng, 138 căn; thực tế 37 tầng, 840 căn.' }[p.tw];
+        return { title: head, badge: p.o ? 'Tầng vượt' : 'Trong số tầng phép', col: p.o ? UNIT_COL.over : UNIT_COL.in, rows,
+          text: facts + (p.o ? ` Tầng ${p.fl} nằm trong phần xây vượt.` : ' Tầng này trong số tầng được phép, nhưng số căn toàn tòa vượt nhiều lần.') + (p.tw === 'VP6' ? ' VP6 chưa có căn nào được cấp sổ.' : ' Một phần căn VP5 đã được cấp sổ.') };
+      }
+    }
+    if (p.st) {
+      const s = ST[p.st];
+      let extra = p.tw === 'CT6B' && p.st === 'ok' ? ' Theo quy hoạch, CT6B là khách sạn 459 phòng; thực tế cả tháp thành 446 căn hộ.' : '';
+      return { title: `${p.tw} · Tầng ${p.fl} · Căn ${p.fl}${pad2(p.no)}`, badge: s[0], col: UNIT_COL[p.st], text: s[1] + extra,
+        rows: [['Tầng', `${p.fl} / 32`], ['Căn trên tầng', `${p.u} (ước tính)`], ['Cao độ sàn', `${(p.b).toFixed(1)} m`]] };
+    }
+    if (p.k === 'house') return { title: 'Nhà liền kề · CT6 Kiến Hưng', badge: 'Thấp tầng', col: C.concrete,
+      text: 'Quy hoạch duyệt 15 nhà liền kề, thực tế xây 38 nhà. 10 nhà dự kiến phá dỡ: 6 nhà trên đất trường mầm non, 4 nhà trên đường nội bộ.', rows: [] };
+    const rows = [['Tầng', `${p.fl} / ${p.nf}`], ['Cao độ sàn', `${(+p.b).toFixed(1)} m`]];
+    if (p.g === 'hh') return { title: `${p.tw} · Tầng ${p.fl}`, badge: p.o ? 'Tầng vượt' : 'Trong giới hạn', col: p.o ? C.warn : C.plan,
+      text: p.o ? `Tổ hợp HH chỉ được xây tối đa 27 tầng. Tầng ${p.fl} nằm trong phần nâng thêm lên ${p.nf} tầng.` : 'Nằm trong giới hạn 27 tầng được phép của tổ hợp HH Linh Đàm.', rows };
+    if (p.g === 'vp' && p.pf) {
+      const facts = { VP5: '216 căn được duyệt, thực tế 805 căn', VP6: '138 căn được duyệt, thực tế 840 căn' }[p.tw];
+      return { title: `${p.tw} · Tầng ${p.fl}`, badge: p.o ? 'Tầng vượt' : 'Trong giới hạn', col: p.o ? C.warn : C.plan,
+        text: `${p.tw} được phép ${p.pf} tầng, xây ${p.nf} tầng; ${facts}. ` + (p.o ? `Tầng ${p.fl} nằm trong phần xây vượt.` : `Tầng ${p.fl} nằm trong số tầng được phép.`), rows };
+    }
+    if (p.g === 'kv') {
+      if (p.k === 'pod') return { title: `${p.tw} · Tầng ${p.fl}`, badge: 'Sai công năng', col: C.warn,
+        text: 'Tầng 2–4 được quy hoạch cho thương mại, dịch vụ, nhà trẻ và sinh hoạt cộng đồng nhưng bị chuyển thành căn hộ để bán. 246 căn (43–74 m²) ở tầng 2–4 của 4 tòa dự kiến di dời trong năm 2027.', rows };
+      return { title: `${p.tw} · Tầng ${p.fl}`, badge: p.fl === 1 ? 'Tầng 1' : 'Chưa có số liệu', col: C.plan,
+        text: p.fl === 1 ? 'Một số diện tích tầng 1 đang dùng khác công năng được duyệt.' : 'Báo chí chưa công bố sai phạm riêng cho tầng này. Từ tầng 4 trở lên, chủ đầu tư bị cho là tự ý thay đổi cơ cấu diện tích căn hộ.', rows };
+    }
+    if (p.g === 'dt') {
+      const t = { pod: ['Sai công năng', 'Tầng 2 của cả 6 tòa được quy hoạch thương mại nhưng bị chuyển thành nơi ở.'],
+        over: ['Tầng vượt', 'Quy hoạch duyệt 29 tầng; thực tế xây 31 tầng.'],
+        pent: ['Áp mái xây thêm', 'Tầng áp mái không có trong quy hoạch, được chia thành căn hộ để bán.'],
+        body: ['Trong giới hạn', 'Nằm trong 29 tầng được duyệt.'] }[p.k];
+      return { title: `${p.tw} · Tầng ${p.fl}`, badge: t[0], col: p.o ? C.warn : C.plan, text: t[1], rows };
+    }
+    if (p.ct6 == 1) {
+      if (p.k === 'g1') return { title: `${p.tw} · Tầng 1`, badge: 'Khối đế', col: C.concrete, text: 'Tầng 1 của khối đế chung ba tòa gồm sảnh, một siêu thị và 56 ki-ốt.', rows };
+      const st = p.k === 'pod' ? 'move' : p.k === 'pent' ? 'pent' : p.tw === 'CT6C' ? 'extra' : 'ok';
+      return { title: `${p.tw} · Tầng ${p.fl}`, badge: ST[st][0], col: UNIT_COL[st], text: ST[st][1] + ' Phóng gần hơn để thấy từng căn.', rows: rows.concat([['Căn trên tầng', `${p.u} (ước tính)`]]) };
+    }
+    return { title: `${p.tw} · Tầng ${p.fl}`, badge: 'Chưa có số liệu', col: C.concrete,
+      text: 'Các bài báo chưa công bố sai phạm chi tiết theo tầng cho công trình này. Toàn bộ thuộc danh sách 12 công trình xử lý theo Nghị quyết 96.', rows };
+  }
+  function showInfo(p) {
+    const d = describe(p);
+    info.querySelector('.ih').textContent = d.title;
+    const bd = info.querySelector('.ib'); bd.textContent = d.badge; bd.style.background = d.col;
+    info.querySelector('.it').textContent = d.text;
+    const dl = info.querySelector('dl'); dl.innerHTML = '';
+    d.rows.forEach(([k, v]) => { const dt = document.createElement('dt'); dt.textContent = k; const dd = document.createElement('dd'); dd.textContent = v; dl.append(dt, dd); });
+    info.hidden = false;
+  }
+  let hovered = null, selected = null;
+  const setState = (ref, key, val) => ref && map.setFeatureState({ source: ref.source, id: ref.id }, { [key]: val });
+  function pick(e) {
+    const layers = ['units', 'seg'].filter(l => map.getLayer(l) && map.getLayoutProperty(l, 'visibility') !== 'none');
+    const fs = map.queryRenderedFeatures(e.point, { layers });
+    return fs.length ? fs[0] : null;
+  }
+  function setupPicking() {
+    map.on('mousemove', (e) => {
+      const f = pick(e);
+      const ref = f ? { source: f.source, id: f.id } : null;
+      if (hovered && (!ref || ref.id !== hovered.id || ref.source !== hovered.source)) setState(hovered, 'hover', false);
+      if (ref) setState(ref, 'hover', true);
+      hovered = ref;
+      map.getCanvas().style.cursor = ref ? 'pointer' : '';
+    });
+    map.on('click', (e) => {
+      const f = pick(e);
+      setState(selected, 'sel', false);
+      if (!f) { selected = null; info.hidden = true; return; }
+      selected = { source: f.source, id: f.id };
+      setState(selected, 'sel', true);
+      showInfo(f.properties);
+      // tòa vừa bấm trở thành tâm: camera đưa nó vào giữa, mọi phép xoay sau đó quay quanh nó
+      const tc = towerC[f.properties.n] || centroid([{ geometry: { coordinates: [f.geometry.type === 'Polygon' ? f.geometry.coordinates[0] : f.geometry.coordinates[0][0]] } }]);
+      pivot = tc;
+      userMoved = true; cancelAnimationFrame(spin);
+      map.easeTo({ center: tc, padding: viewPad(), duration: 650 });
+      map.getSource('pulse').setData({ type: 'Feature', geometry: { type: 'Point', coordinates: tc }, properties: {} });
+      if (orbitOn) map.once('moveend', () => orbitOn && drift());
+    });
+    info.querySelector('.ix').onclick = () => { setState(selected, 'sel', false); selected = null; info.hidden = true; };
+  }
+
+  map.on('load', async () => {
+    let data;
+    try { data = await (await fetch('city-v2.json', { cache: 'no-cache' })).json(); } catch (e) { console.error(e); return; }
+    const add = (id, d) => map.addSource(id, { type: 'geojson', data: d });
+    add('water', data.water); add('parks', data.parks); add('roads', data.roads);
+    add('buildings', data.buildings); add('targets', data.targets);
+    const segFC = segments(data.targets);
+    map.addSource('seg', { type: 'geojson', data: segFC, generateId: true });
+    map.addSource('units', { type: 'geojson', data: units(segFC), generateId: true });
+    map.addSource('wins', { type: 'geojson', data: winFC });
+
+    map.addLayer({ id: 'parks', type: 'fill', source: 'parks', paint: { 'fill-color': '#18231d' } });
+    map.addLayer({ id: 'water', type: 'fill', source: 'water', paint: { 'fill-color': '#0b2230' } });
+    map.addLayer({ id: 'river', type: 'line', source: 'roads', filter: ['==', ['get', 'c'], 'river'], paint: { 'line-color': '#0d2a3a', 'line-width': ['interpolate', ['linear'], ['zoom'], 13, 1.5, 17, 8] } });
+    map.addLayer({ id: 'road-s', type: 'line', source: 'roads', filter: ['==', ['get', 'c'], 'service'], paint: { 'line-color': '#1c2328', 'line-width': ['interpolate', ['linear'], ['zoom'], 14, 0.4, 17, 3] } });
+    map.addLayer({ id: 'road-m', type: 'line', source: 'roads', filter: ['==', ['get', 'c'], 'minor'], layout: { 'line-cap': 'round' }, paint: { 'line-color': '#262f35', 'line-width': ['interpolate', ['linear'], ['zoom'], 13, 0.6, 17, 6] } });
+    map.addLayer({ id: 'road-t', type: 'line', source: 'roads', filter: ['==', ['get', 'c'], 'mid'], layout: { 'line-cap': 'round' }, paint: { 'line-color': '#34404a', 'line-width': ['interpolate', ['linear'], ['zoom'], 13, 1, 17, 10] } });
+    map.addLayer({ id: 'road-p', type: 'line', source: 'roads', filter: ['==', ['get', 'c'], 'major'], layout: { 'line-cap': 'round' }, paint: { 'line-color': '#4a5862', 'line-width': ['interpolate', ['linear'], ['zoom'], 13, 1.6, 17, 16] } });
+    map.addLayer({ id: 'bld', type: 'fill-extrusion', source: 'buildings', paint: {
+      'fill-extrusion-color': ['interpolate', ['linear'], ['get', 'h'], 0, '#2a3238', 40, '#3a454c', 120, '#56646d'],
+      'fill-extrusion-height': ['get', 'h'], 'fill-extrusion-opacity': 0.75 } });
+    map.addLayer({ id: 'seg', type: 'fill-extrusion', source: 'seg', paint: {
+      'fill-extrusion-color': C.warn, 'fill-extrusion-height': ['get', 't'], 'fill-extrusion-base': ['get', 'b'],
+      'fill-extrusion-opacity': 0.97, 'fill-extrusion-vertical-gradient': false } });
+    map.addLayer({ id: 'units', type: 'fill-extrusion', source: 'units', layout: { visibility: 'none' }, paint: {
+      'fill-extrusion-color': C.plan, 'fill-extrusion-height': ['get', 't'], 'fill-extrusion-base': ['get', 'b'],
+      'fill-extrusion-opacity': 0.97, 'fill-extrusion-vertical-gradient': false } });
+    map.addLayer({ id: 'wins', type: 'fill-extrusion', source: 'wins', layout: { visibility: 'none' }, paint: {
+      'fill-extrusion-color': '#eaf6ff', 'fill-extrusion-height': ['get', 't'], 'fill-extrusion-base': ['get', 'b'],
+      'fill-extrusion-opacity': 0.97, 'fill-extrusion-vertical-gradient': false } });
+    map.addLayer({ id: 'seg-line', type: 'line', source: 'targets', paint: { 'line-color': '#ffb59f', 'line-width': 2 } });
+    map.on('zoom', updateDetail);
+    updateDetail();
+    setupPicking();
+    map.addSource('pulse', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+    map.addLayer({ id: 'glow', type: 'line', source: 'targets', filter: ['==', ['get', 'g'], '__none__'], paint: {
+      'line-color': C.warn, 'line-width': ['interpolate', ['linear'], ['zoom'], 14, 6, 18, 26], 'line-blur': ['interpolate', ['linear'], ['zoom'], 14, 4, 18, 18], 'line-opacity': 0.6 } }, 'bld');
+    map.addLayer({ id: 'pulse', type: 'circle', source: 'pulse', paint: {
+      'circle-radius': 40, 'circle-color': 'rgba(255,90,54,0.06)', 'circle-stroke-color': C.warn, 'circle-stroke-width': 2,
+      'circle-stroke-opacity': 0.8, 'circle-pitch-alignment': 'map', 'circle-pitch-scale': 'viewport' } }, 'bld');
+    map.on('move', placeSpot);
+    requestAnimationFrame(pulseLoop);
+
+    const groups = {};
+    data.targets.features.forEach(f => (groups[f.properties.g] = groups[f.properties.g] || []).push(f));
+    Object.entries(groups).forEach(([g, fs]) => {
+      centers[g] = centroid(fs);
+      const el = document.createElement('div');
+      el.className = 'tag'; el.innerHTML = '<i></i>' + LABELS[g];
+      markers[g] = el;
+      new maplibregl.Marker({ element: el, anchor: 'bottom' }).setLngLat(centers[g]).addTo(map);
+    });
+    // nhãn từng tháp CT6
+    groups.kh.filter(f => /^CT6/.test(f.properties.n)).forEach(f => {
+      const el = document.createElement('div');
+      const name = f.properties.n;
+      el.className = 'sub hide'; el.textContent = name.replace(' Xa La', '');
+      subs.push({ el, name });
+      new maplibregl.Marker({ element: el, anchor: 'top' }).setLngLat(centroid([f])).addTo(map);
+    });
+    const all = data.targets.features;
+    all.forEach(f => { if (f.properties.n) towerC[f.properties.n] = centroid([f]); });
+    bounds = bbox(all);
+    linhdam = bbox(all.filter(f => f.properties.g === 'hh' || f.properties.g === 'vp'));
+    west = bbox(all.filter(f => ['kh', 'tt', 'xl', 'dt'].includes(f.properties.g)));
+
+    // Đoạn đang đọc = thẻ chữ nằm trên (hoặc gần nhất) đường mốc giữa màn hình.
+    // Tính theo thẻ chứ không theo khối section, nên cuộn xuống hay cuộn lên đều đổi cảnh ở cùng một chỗ.
+    let current = null, ticking = false;
+    const steps = [...document.querySelectorAll('.step')];
+    function pickStep() {
+      ticking = false;
+      const anchor = innerHeight * (narrow() ? 0.68 : 0.5);
+      let best = null, bestD = Infinity;
+      steps.forEach(s => {
+        const r = s.querySelector('.card').getBoundingClientRect();
+        const d = r.top <= anchor && r.bottom >= anchor ? 0 : Math.min(Math.abs(r.top - anchor), Math.abs(r.bottom - anchor));
+        if (d < bestD) { bestD = d; best = s; }
+      });
+      if (best && best !== current) { current = best; go(best.dataset); }
+    }
+    addEventListener('scroll', () => { if (!ticking) { ticking = true; requestAnimationFrame(pickStep); } }, { passive: true });
+    map.jumpTo(cam({ focus: 'all', view: 'overview' }));
+    apply({ focus: 'all' });
+    pickStep();
+    addEventListener('resize', () => current && map.jumpTo(cam(current.dataset)));
+  });
+})();
+</script>
